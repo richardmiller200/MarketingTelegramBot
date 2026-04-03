@@ -1,0 +1,15 @@
+{
+  "name": "telegram-welcome-bot",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node bot.js",
+    "template": "node scripts/make-template.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "node-telegram-bot-api": "^0.66.0",
+    "xlsx": "^0.18.5"
+  }
+}
