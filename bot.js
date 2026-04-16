@@ -9,6 +9,13 @@ const ROOT = process.cwd();
 const DELAY_MS = 55;
 const DEFAULT_WELCOME =
   "Thanks for starting the bot. How can I help you today?";
+const DEFAULT_REACH_BUTTON_TEXT = "Reach";
+const DEFAULT_RANDOM_CHANNEL_BUTTON_TEXT = "Random Channel";
+const DEFAULT_RANDOM_CHANNEL_URLS = [
+  "https://t.me/durov",
+  "https://t.me/telegram",
+  "https://t.me/telegramtips",
+];
 const DEFAULT_DAILY_SEND_TIMES = [
   { key: "morning", hour: 9, minute: 0 },
   { key: "afternoon", hour: 16, minute: 30 },
@@ -31,6 +38,49 @@ function normalizeHeaderKey(k) {
     .replace(/^_|_$/g, "");
 }
 
+function parseUrlList(raw) {
+  return String(raw ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((url) => /^https?:\/\//i.test(url));
+}
+
+function parseWelcomeButtons(norm) {
+  const buttons = [];
+
+  const inlinePairs = [
+    ["button_1_text", "button_1_url"],
+    ["button_2_text", "button_2_url"],
+    ["button_3_text", "button_3_url"],
+    ["button_4_text", "button_4_url"],
+    ["button_5_text", "button_5_url"],
+  ];
+
+  for (const [textKey, urlKey] of inlinePairs) {
+    const text = String(norm[textKey] ?? "").trim();
+    const url = String(norm[urlKey] ?? "").trim();
+    if (text && /^https?:\/\//i.test(url)) {
+      buttons.push({ text, url });
+    }
+  }
+
+  const rawList = String(
+    norm.welcome_buttons ?? norm.buttons ?? norm.inline_buttons ?? ""
+  ).trim();
+  if (!rawList) return buttons;
+
+  for (const item of rawList.split(",")) {
+    const [textRaw, urlRaw] = item.split("|");
+    const text = String(textRaw ?? "").trim();
+    const url = String(urlRaw ?? "").trim();
+    if (text && /^https?:\/\//i.test(url)) {
+      buttons.push({ text, url });
+    }
+  }
+
+  return buttons;
+}
+
 /** Map Excel row to bot config (incl. optional welcome_image). */
 function rowToConfig(row, index) {
   const norm = {};
@@ -42,6 +92,7 @@ function rowToConfig(row, index) {
     norm.name ??
     norm.bot_name ??
     norm.botname ??
+    norm.z ??
     `bot_${index + 1}`;
   const token = String(
     norm.bot_token ?? norm.token ?? norm.bot_api ?? ""
@@ -72,6 +123,20 @@ function rowToConfig(row, index) {
     norm.group_id ??
     norm.channel_id ??
     "";
+  const channelUrl = String(
+    norm.channel_url ??
+      norm.channel_link ??
+      norm.reach_url ??
+      norm.reach_link ??
+      ""
+  ).trim();
+  const randomChannelUrls = parseUrlList(
+    norm.random_channel_urls ??
+      norm.random_channels ??
+      norm.channel_urls ??
+      ""
+  );
+  const welcomeButtons = parseWelcomeButtons(norm);
 
   let enabled = true;
   const en = norm.enabled;
@@ -91,6 +156,10 @@ function rowToConfig(row, index) {
     welcomeExtra: welcomeMessage,
     welcomeImage,
     groupChatId: Number(groupChatIdRaw) || null,
+    channelUrl,
+    randomChannelUrls,
+    welcomeButtons,
+    isFirstAndheriBot: false,
   };
 }
 
@@ -137,8 +206,28 @@ function loadBotsFromEnv() {
     welcomeExtra: "",
     welcomeImage: String(process.env.WELCOME_IMAGE ?? "").trim(),
     groupChatId: Number(process.env.GROUP_CHAT_ID ?? "") || null,
+    channelUrl: String(process.env.CHANNEL_URL ?? "").trim(),
+    randomChannelUrls: parseUrlList(process.env.RANDOM_CHANNEL_URLS ?? ""),
+    welcomeButtons: [],
+    isFirstAndheriBot: false,
   };
   return applyGlobalAdminFallback([cfg]);
+}
+
+function markFirstAndheriBot(configs) {
+  let found = false;
+  return configs.map((cfg) => {
+    if (
+      !found &&
+      /a?ndheri/i.test(
+        [String(cfg.name ?? ""), String(cfg.welcomeExtra ?? "")].join(" ")
+      )
+    ) {
+      found = true;
+      return { ...cfg, isFirstAndheriBot: true };
+    }
+    return cfg;
+  });
 }
 
 function resolveConfigs() {
@@ -147,10 +236,14 @@ function resolveConfigs() {
     process.env.BOTS_EXCEL_PATH || "bots.xlsx"
   );
   const fromExcel = loadBotsFromExcel(excelPath);
-  if (fromExcel.length > 0) return { configs: fromExcel, source: excelPath };
+  if (fromExcel.length > 0) {
+    return { configs: markFirstAndheriBot(fromExcel), source: excelPath };
+  }
 
   const fromEnv = loadBotsFromEnv();
-  if (fromEnv.length > 0) return { configs: fromEnv, source: ".env" };
+  if (fromEnv.length > 0) {
+    return { configs: markFirstAndheriBot(fromEnv), source: ".env" };
+  }
 
   console.error(
     "No bots found. Either:\n" +
@@ -314,6 +407,35 @@ function resolveWelcomePhotoInput(raw) {
 const BROADCAST_CMD = /^\/broadcast(?:\s+([\s\S]+))?$/;
 
 function attachHandlers(bot, cfg, store, logPrefix) {
+  function welcomeReplyMarkup() {
+    if (Array.isArray(cfg.welcomeButtons) && cfg.welcomeButtons.length > 0) {
+      return {
+        inline_keyboard: cfg.welcomeButtons.map((button) => [button]),
+      };
+    }
+
+    if (cfg.isFirstAndheriBot) {
+      const pool =
+        Array.isArray(cfg.randomChannelUrls) && cfg.randomChannelUrls.length > 0
+          ? cfg.randomChannelUrls
+          : DEFAULT_RANDOM_CHANNEL_URLS;
+      const randomUrl = pool[Math.floor(Math.random() * pool.length)];
+      return {
+        inline_keyboard: [
+          [{ text: DEFAULT_RANDOM_CHANNEL_BUTTON_TEXT, url: randomUrl }],
+        ],
+      };
+    }
+
+    const url = String(cfg.channelUrl ?? "").trim();
+    if (!/^https?:\/\//i.test(url)) return undefined;
+    return {
+      inline_keyboard: [
+        [{ text: DEFAULT_REACH_BUTTON_TEXT, url }],
+      ],
+    };
+  }
+
   const { loadChatIds, registerUser } = store;
   const adminIds = cfg.adminIds;
   const scheduleFile = path.join(ROOT, "data", cfg.slug, "schedule.json");
@@ -486,17 +608,21 @@ function attachHandlers(bot, cfg, store, logPrefix) {
       ? `\n\n${cfg.welcomeExtra}`
       : "";
     const welcome = `Welcome, ${name}! 👋\n\n${DEFAULT_WELCOME}${extra}`;
+    const replyMarkup = welcomeReplyMarkup();
 
     const photo = cfg.welcomeImage && resolveWelcomePhotoInput(cfg.welcomeImage);
     if (photo) {
       try {
-        await bot.sendPhoto(chatId, photo, { caption: welcome });
+        await bot.sendPhoto(chatId, photo, {
+          caption: welcome,
+          reply_markup: replyMarkup,
+        });
       } catch (err) {
         console.error(`${logPrefix} welcome image failed:`, err.message);
-        await bot.sendMessage(chatId, welcome);
+        await bot.sendMessage(chatId, welcome, { reply_markup: replyMarkup });
       }
     } else {
-      await bot.sendMessage(chatId, welcome);
+      await bot.sendMessage(chatId, welcome, { reply_markup: replyMarkup });
     }
   });
 
