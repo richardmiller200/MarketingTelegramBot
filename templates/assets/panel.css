@@ -528,6 +528,10 @@ form.main .row {
   grid-template-columns: 1fr 1fr;
   gap: 14px;
 }
+form.main .row.button-row {
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.35fr) minmax(110px, 0.5fr);
+  align-items: end;
+}
 form.main label {
   display: flex;
   flex-direction: column;
@@ -539,7 +543,8 @@ form.main label {
   color: var(--on-surface-variant);
 }
 form.main input,
-form.main textarea {
+form.main textarea,
+form.main select {
   width: 100%;
   padding: 12px 14px;
   font-family: "Inter", sans-serif;
@@ -556,11 +561,13 @@ form.main textarea {
 form.main input::placeholder,
 form.main textarea::placeholder { color: rgba(170, 171, 175, 0.6); }
 form.main input:focus,
-form.main textarea:focus {
+form.main textarea:focus,
+form.main select:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 4px rgba(129, 236, 255, 0.15);
 }
 form.main textarea { min-height: 90px; resize: vertical; font-family: "Inter", sans-serif; }
+form.main textarea[name="welcome_message"] { min-height: 190px; }
 
 form.main .check {
   display: flex;

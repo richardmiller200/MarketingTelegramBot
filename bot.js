@@ -28,8 +28,10 @@ const PANEL_PORT = Number(process.env.PANEL_PORT ?? "3000");
 const PANEL_HOST = String(process.env.PANEL_HOST ?? "127.0.0.1").trim();
 const PANEL_USERNAME = String(process.env.PANEL_USERNAME ?? "admin").trim();
 const PANEL_PASSWORD = String(process.env.PANEL_PASSWORD ?? "").trim();
+const PANEL_MAX_FAILED_ATTEMPTS = 3;
 const DB_FILE = path.join(ROOT, "data", "config.sqlite");
 const TEMPLATES_DIR = path.join(ROOT, "templates");
+const ADMIN_LOGIN_STATE_FILE = path.join(ROOT, "data", "admin-login-state.json");
 
 function parseAdminIds(raw) {
   return String(raw ?? "")
@@ -58,18 +60,19 @@ function parseWelcomeButtons(norm) {
   const buttons = [];
 
   const inlinePairs = [
-    ["button_1_text", "button_1_url"],
-    ["button_2_text", "button_2_url"],
-    ["button_3_text", "button_3_url"],
-    ["button_4_text", "button_4_url"],
-    ["button_5_text", "button_5_url"],
+    ["button_1_text", "button_1_url", "button_1_row"],
+    ["button_2_text", "button_2_url", "button_2_row"],
+    ["button_3_text", "button_3_url", "button_3_row"],
+    ["button_4_text", "button_4_url", "button_4_row"],
+    ["button_5_text", "button_5_url", "button_5_row"],
   ];
 
-  for (const [textKey, urlKey] of inlinePairs) {
+  for (const [textKey, urlKey, rowKey] of inlinePairs) {
     const text = String(norm[textKey] ?? "").trim();
     const url = String(norm[urlKey] ?? "").trim();
     if (text && /^https?:\/\//i.test(url)) {
-      buttons.push({ text, url });
+      const perRow = parseButtonsPerRow(norm[rowKey], 0);
+      buttons.push(perRow >= 1 && perRow <= 3 ? { text, url, perRow } : { text, url });
     }
   }
 
@@ -88,6 +91,12 @@ function parseWelcomeButtons(norm) {
   }
 
   return buttons;
+}
+
+function parseButtonsPerRow(raw, fallback = 2) {
+  const n = Number(raw);
+  if (Number.isNaN(n)) return fallback;
+  return Math.max(1, Math.min(3, Math.floor(n)));
 }
 
 /** Map Excel row to bot config (incl. optional welcome_image). */
@@ -139,13 +148,10 @@ function rowToConfig(row, index) {
       norm.reach_link ??
       ""
   ).trim();
-  const randomChannelUrls = parseUrlList(
-    norm.random_channel_urls ??
-      norm.random_channels ??
-      norm.channel_urls ??
-      ""
-  );
   const welcomeButtons = parseWelcomeButtons(norm);
+  const welcomeButtonsPerRow = parseButtonsPerRow(
+    norm.buttons_per_row ?? norm.button_columns ?? norm.button_per_row ?? 2
+  );
 
   let enabled = true;
   const en = norm.enabled;
@@ -166,8 +172,10 @@ function rowToConfig(row, index) {
     welcomeImage,
     groupChatId: Number(groupChatIdRaw) || null,
     channelUrl,
-    randomChannelUrls,
+    randomChannelUrls: [],
     welcomeButtons,
+    welcomeButtonsPerRow,
+    welcomeButtonLayout: "",
     isFirstAndheriBot: false,
   };
 }
@@ -247,8 +255,10 @@ function loadBotsFromEnv() {
     welcomeImage: String(process.env.WELCOME_IMAGE ?? "").trim(),
     groupChatId: Number(process.env.GROUP_CHAT_ID ?? "") || null,
     channelUrl: String(process.env.CHANNEL_URL ?? "").trim(),
-    randomChannelUrls: parseUrlList(process.env.RANDOM_CHANNEL_URLS ?? ""),
+    randomChannelUrls: [],
     welcomeButtons,
+    welcomeButtonsPerRow: parseButtonsPerRow(process.env.BUTTONS_PER_ROW ?? 2),
+    welcomeButtonLayout: "",
     isFirstAndheriBot: false,
   };
   return applyGlobalAdminFallback([cfg]);
@@ -288,10 +298,23 @@ function openConfigDb() {
       channel_url TEXT NOT NULL DEFAULT '',
       random_channel_urls TEXT NOT NULL DEFAULT '',
       welcome_buttons TEXT NOT NULL DEFAULT '',
+      buttons_per_row INTEGER NOT NULL DEFAULT 2,
+      button_layout TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
   `);
+  try {
+    const cols = db.prepare("PRAGMA table_info(bots)").all();
+    const hasButtonsPerRow = cols.some((c) => c.name === "buttons_per_row");
+    if (!hasButtonsPerRow) {
+      db.exec("ALTER TABLE bots ADD COLUMN buttons_per_row INTEGER NOT NULL DEFAULT 2");
+    }
+    const hasButtonLayout = cols.some((c) => c.name === "button_layout");
+    if (!hasButtonLayout) {
+      db.exec("ALTER TABLE bots ADD COLUMN button_layout TEXT NOT NULL DEFAULT ''");
+    }
+  } catch {}
   return db;
 }
 
@@ -305,8 +328,10 @@ function configToDbRow(cfg) {
     welcome_image: String(cfg.welcomeImage ?? "").trim(),
     group_chat_id: cfg.groupChatId ? String(cfg.groupChatId) : "",
     channel_url: String(cfg.channelUrl ?? "").trim(),
-    random_channel_urls: (cfg.randomChannelUrls ?? []).join(","),
+    random_channel_urls: "",
     welcome_buttons: JSON.stringify(cfg.welcomeButtons ?? []),
+    buttons_per_row: parseButtonsPerRow(cfg.welcomeButtonsPerRow ?? 2),
+    button_layout: "",
   };
 }
 
@@ -316,12 +341,17 @@ function dbRowToConfig(row, index) {
     const parsed = JSON.parse(String(row.welcome_buttons ?? "[]"));
     if (Array.isArray(parsed)) {
       buttons = parsed
-        .map((b) => ({ text: String(b.text ?? "").trim(), url: String(b.url ?? "").trim() }))
+        .map((b) => ({
+          text: String(b.text ?? "").trim(),
+          url: String(b.url ?? "").trim(),
+          perRow: parseButtonsPerRow(b.perRow, 0),
+        }))
         .filter((b) => b.text && /^https?:\/\//i.test(b.url));
     }
   } catch {}
 
   return {
+    id: Number(row.id) || 0,
     name: String(row.name ?? "").trim() || `bot_${index + 1}`,
     slug: slugify(String(row.name ?? ""), index),
     token: String(row.token ?? "").trim(),
@@ -331,8 +361,10 @@ function dbRowToConfig(row, index) {
     welcomeImage: String(row.welcome_image ?? "").trim(),
     groupChatId: Number(row.group_chat_id) || null,
     channelUrl: String(row.channel_url ?? "").trim(),
-    randomChannelUrls: parseUrlList(row.random_channel_urls ?? ""),
+    randomChannelUrls: [],
     welcomeButtons: buttons,
+    welcomeButtonsPerRow: parseButtonsPerRow(row.buttons_per_row ?? 2),
+    welcomeButtonLayout: "",
     isFirstAndheriBot: false,
   };
 }
@@ -343,10 +375,10 @@ function seedSqliteIfEmpty(db, seedConfigs) {
   const insert = db.prepare(`
     INSERT INTO bots (
       name, token, admin_ids, enabled, welcome_message, welcome_image,
-      group_chat_id, channel_url, random_channel_urls, welcome_buttons, created_at, updated_at
+      group_chat_id, channel_url, random_channel_urls, welcome_buttons, buttons_per_row, button_layout, created_at, updated_at
     ) VALUES (
       @name, @token, @admin_ids, @enabled, @welcome_message, @welcome_image,
-      @group_chat_id, @channel_url, @random_channel_urls, @welcome_buttons, @created_at, @updated_at
+      @group_chat_id, @channel_url, @random_channel_urls, @welcome_buttons, @buttons_per_row, @button_layout, @created_at, @updated_at
     )
   `);
   const now = new Date().toISOString();
@@ -361,6 +393,15 @@ function seedSqliteIfEmpty(db, seedConfigs) {
 }
 
 function loadBotsFromSqlite(db) {
+  const rows = db
+    .prepare("SELECT * FROM bots WHERE enabled = 1 ORDER BY id ASC")
+    .all();
+  return rows
+    .map((row, i) => dbRowToConfig(row, i))
+    .filter((c) => c.enabled && c.token && c.token !== "PASTE_TOKEN_FROM_BOTFATHER");
+}
+
+function loadEnabledConfigsFromDb(db) {
   const rows = db
     .prepare("SELECT * FROM bots WHERE enabled = 1 ORDER BY id ASC")
     .all();
@@ -397,36 +438,108 @@ function resolveConfigs() {
 function createUserStore(usersFile) {
   let registerQueue = Promise.resolve();
 
-  function loadChatIds() {
+  function normalizeStoredUsers(data) {
+    if (Array.isArray(data?.users)) {
+      return data.users
+        .map((u) => ({
+          chatId: Number(u.chatId),
+          username: String(u.username ?? "").trim(),
+          firstName: String(u.firstName ?? "").trim(),
+          lastName: String(u.lastName ?? "").trim(),
+          firstSeenAt: String(u.firstSeenAt ?? "").trim(),
+          lastSeenAt: String(u.lastSeenAt ?? "").trim(),
+        }))
+        .filter((u) => !Number.isNaN(u.chatId));
+    }
+    const ids = Array.isArray(data?.chatIds) ? data.chatIds : [];
+    return [...new Set(ids.map(Number).filter((n) => !Number.isNaN(n)))].map((chatId) => ({
+      chatId,
+      username: "",
+      firstName: "",
+      lastName: "",
+      firstSeenAt: "",
+      lastSeenAt: "",
+    }));
+  }
+
+  function loadUsers() {
     try {
       const dir = path.dirname(usersFile);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       if (!fs.existsSync(usersFile)) return [];
       const data = JSON.parse(fs.readFileSync(usersFile, "utf8"));
-      const ids = data.chatIds;
-      if (!Array.isArray(ids)) return [];
-      return [...new Set(ids.map(Number).filter((n) => !Number.isNaN(n)))];
+      return normalizeStoredUsers(data);
     } catch {
       return [];
     }
   }
 
-  function saveChatIds(ids) {
-    const dir = path.dirname(usersFile);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(usersFile, JSON.stringify({ chatIds: ids }, null, 2), "utf8");
+  function loadChatIds() {
+    return [...new Set(loadUsers().map((u) => Number(u.chatId)).filter((n) => !Number.isNaN(n)))];
   }
 
-  function registerUser(chatId) {
+  function saveUsers(users) {
+    const dir = path.dirname(usersFile);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const uniqueUsers = [];
+    const seen = new Set();
+    for (const u of users) {
+      const chatId = Number(u.chatId);
+      if (Number.isNaN(chatId) || seen.has(chatId)) continue;
+      seen.add(chatId);
+      uniqueUsers.push({
+        chatId,
+        username: String(u.username ?? "").trim(),
+        firstName: String(u.firstName ?? "").trim(),
+        lastName: String(u.lastName ?? "").trim(),
+        firstSeenAt: String(u.firstSeenAt ?? "").trim(),
+        lastSeenAt: String(u.lastSeenAt ?? "").trim(),
+      });
+    }
+    fs.writeFileSync(
+      usersFile,
+      JSON.stringify(
+        {
+          chatIds: uniqueUsers.map((u) => u.chatId),
+          users: uniqueUsers,
+        },
+        null,
+        2
+      ),
+      "utf8"
+    );
+  }
+
+  function registerUser(msg) {
     registerQueue = registerQueue.then(() => {
-      const ids = loadChatIds();
-      if (ids.includes(chatId)) return;
-      ids.push(chatId);
-      saveChatIds(ids);
+      const chatId = Number(msg?.chat?.id);
+      if (Number.isNaN(chatId)) return;
+      const now = new Date().toISOString();
+      const users = loadUsers();
+      const idx = users.findIndex((u) => u.chatId === chatId);
+      const incoming = {
+        chatId,
+        username: String(msg?.from?.username ?? "").trim(),
+        firstName: String(msg?.from?.first_name ?? "").trim(),
+        lastName: String(msg?.from?.last_name ?? "").trim(),
+        firstSeenAt: now,
+        lastSeenAt: now,
+      };
+      if (idx >= 0) {
+        users[idx] = {
+          ...users[idx],
+          ...incoming,
+          firstSeenAt: users[idx].firstSeenAt || incoming.firstSeenAt,
+          lastSeenAt: now,
+        };
+      } else {
+        users.push(incoming);
+      }
+      saveUsers(users);
     });
   }
 
-  return { loadChatIds, registerUser };
+  return { loadChatIds, registerUser, loadUsers };
 }
 
 function createSchedulerStore(storeFile) {
@@ -550,8 +663,18 @@ const BROADCAST_CMD = /^\/broadcast(?:\s+([\s\S]+))?$/;
 function attachHandlers(bot, cfg, store, logPrefix, hooks = {}) {
   function welcomeReplyMarkup() {
     if (Array.isArray(cfg.welcomeButtons) && cfg.welcomeButtons.length > 0) {
+      const inlineKeyboard = [];
+      const fallbackPerRow = parseButtonsPerRow(cfg.welcomeButtonsPerRow ?? 2);
+      let index = 0;
+      while (index < cfg.welcomeButtons.length) {
+        const current = cfg.welcomeButtons[index] ?? {};
+        const fromButton = parseButtonsPerRow(current.perRow, 0);
+        const rowSize = fromButton >= 1 && fromButton <= 3 ? fromButton : fallbackPerRow;
+        inlineKeyboard.push(cfg.welcomeButtons.slice(index, index + rowSize));
+        index += rowSize;
+      }
       return {
-        inline_keyboard: cfg.welcomeButtons.map((button) => [button]),
+        inline_keyboard: inlineKeyboard,
       };
     }
 
@@ -685,7 +808,7 @@ function attachHandlers(bot, cfg, store, logPrefix, hooks = {}) {
 
   bot.on("message", async (msg) => {
     upsertGroupOnAnyGroupMessage(msg);
-    if (msg.chat.type === "private") registerUser(msg.chat.id);
+    if (msg.chat.type === "private") registerUser(msg);
 
     if (msg.chat.type !== "private" || !msg.from) return;
 
@@ -947,17 +1070,56 @@ function startBot(cfg) {
     },
   });
   console.log(`${logPrefix} running — users file: data/${cfg.slug}/users.json`);
-  return { cfg, store, runtime };
+  return { cfg, store, runtime, bot };
 }
 
 function countMembers(usersFile) {
   try {
     if (!fs.existsSync(usersFile)) return 0;
     const data = JSON.parse(fs.readFileSync(usersFile, "utf8"));
-    const ids = Array.isArray(data.chatIds) ? data.chatIds : [];
+    const ids = Array.isArray(data.users)
+      ? data.users.map((u) => u.chatId)
+      : Array.isArray(data.chatIds)
+        ? data.chatIds
+        : [];
     return [...new Set(ids.map(Number).filter((n) => !Number.isNaN(n)))].length;
   } catch {
     return 0;
+  }
+}
+
+function loadInteractedUserIdsForSlug(slug) {
+  try {
+    const usersFile = path.join(ROOT, "data", slug, "users.json");
+    if (!fs.existsSync(usersFile)) return [];
+    const data = JSON.parse(fs.readFileSync(usersFile, "utf8"));
+    const users = Array.isArray(data.users)
+      ? data.users
+          .map((u) => ({
+            chatId: String(u.chatId ?? "").trim(),
+            username: String(u.username ?? "").trim(),
+            firstName: String(u.firstName ?? "").trim(),
+            lastName: String(u.lastName ?? "").trim(),
+          }))
+          .filter((u) => u.chatId)
+      : [];
+    if (users.length > 0) {
+      const seen = new Set();
+      return users.filter((u) => {
+        if (seen.has(u.chatId)) return false;
+        seen.add(u.chatId);
+        return true;
+      });
+    }
+    const ids = Array.isArray(data.chatIds) ? data.chatIds : [];
+    return [...new Set(ids.map((id) => String(id).trim()).filter(Boolean))].map((id) => ({
+      chatId: id,
+      username: "",
+      firstName: "",
+      lastName: "",
+    }));
+  } catch {
+    return [];
   }
 }
 
@@ -1012,11 +1174,13 @@ function parseBody(req) {
 
 function parseButtonsFromForm(form) {
   const buttons = [];
+  const fallbackPerRow = parseButtonsPerRow(form.get("buttons_per_row") ?? 2);
   for (let i = 1; i <= 5; i += 1) {
     const text = String(form.get(`button_${i}_text`) ?? "").trim();
     const url = String(form.get(`button_${i}_url`) ?? "").trim();
+    const perRow = parseButtonsPerRow(form.get(`button_${i}_row`) ?? "", fallbackPerRow);
     if (text && /^https?:\/\//i.test(url)) {
-      buttons.push({ text, url });
+      buttons.push({ text, url, perRow });
     }
   }
   return buttons;
@@ -1028,6 +1192,25 @@ function loadBotRows(db) {
 
 function readTemplateFile(name) {
   return fs.readFileSync(path.join(TEMPLATES_DIR, name), "utf8");
+}
+
+function readAdminLoginState() {
+  try {
+    const raw = fs.readFileSync(ADMIN_LOGIN_STATE_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    return {
+      failedAttempts: Number(parsed.failedAttempts || 0),
+      locked: Boolean(parsed.locked),
+      lockedAt: String(parsed.lockedAt ?? ""),
+    };
+  } catch {
+    return { failedAttempts: 0, locked: false, lockedAt: "" };
+  }
+}
+
+function writeAdminLoginState(state) {
+  fs.mkdirSync(path.dirname(ADMIN_LOGIN_STATE_FILE), { recursive: true });
+  fs.writeFileSync(ADMIN_LOGIN_STATE_FILE, JSON.stringify(state, null, 2));
 }
 
 function renderLoginPage(error = "") {
@@ -1064,7 +1247,10 @@ function renderPanelPage({
       const members = live ? live.members : 0;
       const health = live && live.healthy ? "Healthy" : "Not Running";
       const healthClass = live && live.healthy ? "ok" : "warn";
-      return `<tr><td>${escapeHtml(b.name)}</td><td>${members}</td><td><span class="pill ${healthClass}">${health}</span></td><td>${Number(b.enabled) ? "Yes" : "No"}</td><td class="actions">
+      const enabledLabel = Number(b.enabled) ? "Yes" : "No";
+      return `<tr data-searchable="${escapeHtml(
+        `${b.name} ${members} ${health} ${enabledLabel}`
+      )}"><td>${escapeHtml(b.name)}</td><td>${members}</td><td><span class="pill ${healthClass}">${health}</span></td><td>${enabledLabel}</td><td class="actions">
       <a href="/panel?view=add&edit=${b.id}">Edit</a>
       <form method="POST" action="/panel/delete" onsubmit="return confirm('Delete this bot?');"><input type="hidden" name="id" value="${b.id}"/><button type="submit">Delete</button></form>
       </td></tr>`;
@@ -1080,13 +1266,54 @@ function renderPanelPage({
     }
   })();
   const buttonAt = (i, key) => escapeHtml(buttons[i - 1]?.[key] ?? "");
+  const buttonRowAt = (i) =>
+    parseButtonsPerRow(buttons[i - 1]?.perRow ?? current?.buttons_per_row ?? 2);
   const dashboardTopBots = topBots
     .map(
       (r) =>
-        `<tr><td>${escapeHtml(r.name)}</td><td>${Number(r.members || 0)}</td><td><span class="pill ${
+        `<tr data-searchable="${escapeHtml(
+          `${r.name} ${Number(r.members || 0)} ${r.healthy ? "Healthy" : "Issue"}`
+        )}"><td>${escapeHtml(r.name)}</td><td>${Number(r.members || 0)}</td><td><span class="pill ${
           r.healthy ? "ok" : "warn"
         }">${r.healthy ? "Healthy" : "Issue"}</span></td></tr>`
     )
+    .join("");
+  const interactedRows = botRows.map((b, idx) => {
+    const slug = slugify(String(b.name ?? ""), idx);
+    const users = loadInteractedUserIdsForSlug(slug);
+    return {
+      name: String(b.name ?? ""),
+      slug,
+      count: users.length,
+      users,
+    };
+  });
+  const totalInteractedUsers = interactedRows.reduce((sum, r) => sum + r.count, 0);
+  const uniqueInteractedUsers = new Set(
+    interactedRows.flatMap((r) => r.users.map((u) => u.chatId))
+  ).size;
+  const usersTableRows = interactedRows
+    .map((r) => {
+      const preview =
+        r.users.length > 0
+          ? r.users
+              .slice(0, 6)
+              .map((u) => {
+                const handle = u.username ? `@${u.username}` : "";
+                const fullName = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+                return (
+                  handle ||
+                  (fullName ? `${escapeHtml(fullName)} (${escapeHtml(u.chatId)})` : escapeHtml(u.chatId))
+                );
+              })
+              .join(", ")
+          : "No users yet";
+      return `<tr data-searchable="${escapeHtml(`${r.name} ${preview} ${r.count}`)}">
+        <td>${escapeHtml(r.name)}</td>
+        <td>${r.count}</td>
+        <td><code>${preview}</code></td>
+      </tr>`;
+    })
     .join("");
   const content = (() => {
     if (view === "bots") {
@@ -1099,7 +1326,9 @@ function renderPanelPage({
           const msg = r.lastPollingError
             ? r.lastPollingError
             : `${r.name} operational with ${r.members} members tracked.`;
-          return `<div class="log-line"><span class="log-time">[${new Date()
+          return `<div class="log-line" data-searchable="${escapeHtml(
+            `${r.name} ${level} ${msg}`
+          )}"><span class="log-time">[${new Date()
             .toISOString()
             .slice(11, 19)}]</span><strong>${level}</strong> ${escapeHtml(msg)}</div>`;
         })
@@ -1107,15 +1336,6 @@ function renderPanelPage({
       return `<div class="panel"><h2>Global Logs</h2><div class="logs-box">${
         logRows || "<div class='log-line'>No logs yet.</div>"
       }</div></div>`;
-    }
-    if (view === "config") {
-      return `<div class="panel"><h2>API Config</h2><div class="text-screen">
-        <p>Primary endpoint: <strong>Telegram Bot API (long polling)</strong></p>
-        <p>Active bots: <strong>${totalBots}</strong></p>
-        <p>Healthy bots: <strong>${healthyBots}</strong></p>
-        <p>SQLite source: <strong>data/config.sqlite</strong></p>
-        <p>Panel auth: <strong>single admin via .env</strong></p>
-      </div></div>`;
     }
     if (view === "analytics") {
       const avg = totalBots > 0 ? (totalMembers / totalBots).toFixed(1) : "0";
@@ -1126,20 +1346,40 @@ function renderPanelPage({
         <p>Polling error count (live session): <strong>${totalErrors}</strong></p>
       </div></div>`;
     }
+    if (view === "users") {
+      return `<div class="panel"><h2>Interacted Users</h2>
+        <div class="text-screen">
+          <p>Total interactions recorded: <strong>${totalInteractedUsers}</strong></p>
+          <p>Unique user IDs across all bots: <strong>${uniqueInteractedUsers}</strong></p>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Bot</th><th>User Count</th><th>Sample User IDs</th></tr>
+          </thead>
+          <tbody>${usersTableRows || "<tr><td colspan='3'>No user interactions found yet.</td></tr>"}</tbody>
+        </table>
+      </div>`;
+    }
     if (view === "add") {
       return `<div class="panel"><h2>${current ? "Edit Bot" : "Add Bot"}</h2>
 <form class="main" method="POST" action="/panel/save">
 <input type="hidden" name="id" value="${current ? current.id : ""}"/>
 <div class="row"><label>Name<input name="name" required value="${escapeHtml(current?.name ?? "")}"/></label><label>Token<input name="token" required value="${escapeHtml(current?.token ?? "")}"/></label></div>
 <div class="row"><label>Admin IDs (comma)<input name="admin_ids" value="${escapeHtml(current?.admin_ids ?? "")}"/></label><label>Group Chat ID<input name="group_chat_id" value="${escapeHtml(current?.group_chat_id ?? "")}"/></label></div>
+<div class="row"><label>Buttons Per Row
+  <select name="buttons_per_row">
+    <option value="1" ${parseButtonsPerRow(current?.buttons_per_row ?? 2) === 1 ? "selected" : ""}>1</option>
+    <option value="2" ${parseButtonsPerRow(current?.buttons_per_row ?? 2) === 2 ? "selected" : ""}>2</option>
+    <option value="3" ${parseButtonsPerRow(current?.buttons_per_row ?? 2) === 3 ? "selected" : ""}>3</option>
+  </select>
+</label><div></div></div>
 <label>Welcome Message<textarea name="welcome_message">${escapeHtml(current?.welcome_message ?? "")}</textarea></label>
 <div class="row"><label>Welcome Image URL<input name="welcome_image" value="${escapeHtml(current?.welcome_image ?? "")}"/></label><label>Channel URL<input name="channel_url" value="${escapeHtml(current?.channel_url ?? "")}"/></label></div>
-<label>Random Channel URLs (comma)<input name="random_channel_urls" value="${escapeHtml(current?.random_channel_urls ?? "")}"/></label>
-<div class="row"><label>Button 1 Text<input name="button_1_text" value="${buttonAt(1, "text")}"/></label><label>Button 1 URL<input name="button_1_url" value="${buttonAt(1, "url")}"/></label></div>
-<div class="row"><label>Button 2 Text<input name="button_2_text" value="${buttonAt(2, "text")}"/></label><label>Button 2 URL<input name="button_2_url" value="${buttonAt(2, "url")}"/></label></div>
-<div class="row"><label>Button 3 Text<input name="button_3_text" value="${buttonAt(3, "text")}"/></label><label>Button 3 URL<input name="button_3_url" value="${buttonAt(3, "url")}"/></label></div>
-<div class="row"><label>Button 4 Text<input name="button_4_text" value="${buttonAt(4, "text")}"/></label><label>Button 4 URL<input name="button_4_url" value="${buttonAt(4, "url")}"/></label></div>
-<div class="row"><label>Button 5 Text<input name="button_5_text" value="${buttonAt(5, "text")}"/></label><label>Button 5 URL<input name="button_5_url" value="${buttonAt(5, "url")}"/></label></div>
+<div class="row button-row"><label>Button 1 Text<input name="button_1_text" value="${buttonAt(1, "text")}"/></label><label>Button 1 URL<input name="button_1_url" value="${buttonAt(1, "url")}"/></label><label>Row Size<select name="button_1_row"><option value="1" ${buttonRowAt(1) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(1) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(1) === 3 ? "selected" : ""}>1/3</option></select></label></div>
+<div class="row button-row"><label>Button 2 Text<input name="button_2_text" value="${buttonAt(2, "text")}"/></label><label>Button 2 URL<input name="button_2_url" value="${buttonAt(2, "url")}"/></label><label>Row Size<select name="button_2_row"><option value="1" ${buttonRowAt(2) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(2) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(2) === 3 ? "selected" : ""}>1/3</option></select></label></div>
+<div class="row button-row"><label>Button 3 Text<input name="button_3_text" value="${buttonAt(3, "text")}"/></label><label>Button 3 URL<input name="button_3_url" value="${buttonAt(3, "url")}"/></label><label>Row Size<select name="button_3_row"><option value="1" ${buttonRowAt(3) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(3) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(3) === 3 ? "selected" : ""}>1/3</option></select></label></div>
+<div class="row button-row"><label>Button 4 Text<input name="button_4_text" value="${buttonAt(4, "text")}"/></label><label>Button 4 URL<input name="button_4_url" value="${buttonAt(4, "url")}"/></label><label>Row Size<select name="button_4_row"><option value="1" ${buttonRowAt(4) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(4) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(4) === 3 ? "selected" : ""}>1/3</option></select></label></div>
+<div class="row button-row"><label>Button 5 Text<input name="button_5_text" value="${buttonAt(5, "text")}"/></label><label>Button 5 URL<input name="button_5_url" value="${buttonAt(5, "url")}"/></label><label>Row Size<select name="button_5_row"><option value="1" ${buttonRowAt(5) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(5) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(5) === 3 ? "selected" : ""}>1/3</option></select></label></div>
 <label class="check"><input type="checkbox" name="enabled" ${Number(current?.enabled ?? 1) ? "checked" : ""}/> Enabled</label>
 <div class="submit"><button class="primary" type="submit">Save Bot</button><a class="muted" href="/panel?view=add">Reset</a></div></form></div>`;
     }
@@ -1159,9 +1399,9 @@ function renderPanelPage({
         dashboardTopBots || "<tr><td colspan='3'>No member data yet.</td></tr>"
       }</tbody></table></div>
       <div class="panel"><h2>Quick Insights</h2><ul class="mini-list">
-        <li class="mini-item"><div><div class="name">Live Coverage</div><div class="sub">Bots currently healthy</div></div><div class="num">${healthyBots}/${totalBots}</div></li>
-        <li class="mini-item"><div><div class="name">Member Base</div><div class="sub">Total tracked private users</div></div><div class="num">${totalMembers}</div></li>
-        <li class="mini-item"><div><div class="name">Risk Alerts</div><div class="sub">Polling conflicts and other errors</div></div><div class="num">${totalErrors}</div></li>
+        <li class="mini-item" data-searchable="live coverage healthy bots"><div><div class="name">Live Coverage</div><div class="sub">Bots currently healthy</div></div><div class="num">${healthyBots}/${totalBots}</div></li>
+        <li class="mini-item" data-searchable="member base tracked users"><div><div class="name">Member Base</div><div class="sub">Total tracked private users</div></div><div class="num">${totalMembers}</div></li>
+        <li class="mini-item" data-searchable="risk alerts polling errors"><div><div class="name">Risk Alerts</div><div class="sub">Polling conflicts and other errors</div></div><div class="num">${totalErrors}</div></li>
       </ul></div>
     </section>`;
   })();
@@ -1170,8 +1410,8 @@ function renderPanelPage({
     .replace("{{dashboard_active}}", view === "dashboard" ? "active" : "")
     .replace("{{bots_active}}", view === "bots" ? "active" : "")
     .replace("{{logs_active}}", view === "logs" ? "active" : "")
-    .replace("{{config_active}}", view === "config" ? "active" : "")
     .replace("{{analytics_active}}", view === "analytics" ? "active" : "")
+    .replace("{{users_active}}", view === "users" ? "active" : "")
     .replace("{{add_active}}", view === "add" ? "active" : "")
     .replace("{{content}}", content)
     .replace(
@@ -1183,6 +1423,74 @@ function renderPanelPage({
 function startAdminPanel(db, instances) {
   const sessions = new Set();
   const isAuthed = (req) => sessions.has(parseCookies(req).session || "");
+  const runtimeOpsByBotId = new Map();
+  const queueRuntimeOp = (id, task) => {
+    const botId = Number(id || 0);
+    if (!botId) return Promise.resolve();
+    const prev = runtimeOpsByBotId.get(botId) ?? Promise.resolve();
+    const next = prev
+      .catch(() => {})
+      .then(task)
+      .finally(() => {
+        if (runtimeOpsByBotId.get(botId) === next) {
+          runtimeOpsByBotId.delete(botId);
+        }
+      });
+    runtimeOpsByBotId.set(botId, next);
+    return next;
+  };
+  const findInstanceIndexByBotId = (id) =>
+    instances.findIndex((item) => Number(item?.cfg?.id || 0) === Number(id || 0));
+  const stopInstanceAt = async (idx) => {
+    if (idx < 0 || idx >= instances.length) return;
+    const inst = instances[idx];
+    try {
+      await inst.bot.stopPolling({ cancel: true });
+    } catch {}
+    try {
+      inst.bot.removeAllListeners();
+    } catch {}
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    } catch {}
+    instances.splice(idx, 1);
+  };
+  const applyRuntimeForBotId = async (id) => {
+    const botId = Number(id || 0);
+    if (!botId) return;
+    await queueRuntimeOp(botId, async () => {
+      const enabledConfigs = loadEnabledConfigsFromDb(db);
+      const nextCfg = enabledConfigs.find((c) => Number(c.id || 0) === botId);
+      const idx = findInstanceIndexByBotId(botId);
+      const current = idx >= 0 ? instances[idx] : null;
+
+      // If token/slug are unchanged, update config in-place without poller restart.
+      // This avoids any temporary overlap while applying message/button edits.
+      if (
+        current &&
+        nextCfg &&
+        String(current.cfg.token) === String(nextCfg.token) &&
+        String(current.cfg.slug) === String(nextCfg.slug)
+      ) {
+        current.cfg.name = nextCfg.name;
+        current.cfg.adminIds = nextCfg.adminIds;
+        current.cfg.enabled = nextCfg.enabled;
+        current.cfg.welcomeExtra = nextCfg.welcomeExtra;
+        current.cfg.welcomeImage = nextCfg.welcomeImage;
+        current.cfg.groupChatId = nextCfg.groupChatId;
+        current.cfg.channelUrl = nextCfg.channelUrl;
+        current.cfg.welcomeButtons = nextCfg.welcomeButtons;
+        current.cfg.welcomeButtonsPerRow = nextCfg.welcomeButtonsPerRow;
+        current.cfg.isFirstAndheriBot = nextCfg.isFirstAndheriBot;
+        current.runtime.name = nextCfg.name;
+        return;
+      }
+
+      await stopInstanceAt(idx);
+      if (!nextCfg) return;
+      instances.push(startBot(nextCfg));
+    });
+  };
   const redirect = (res, to) => {
     res.writeHead(302, { Location: to });
     res.end();
@@ -1191,17 +1499,18 @@ function startAdminPanel(db, instances) {
   const saveStmt = db.prepare(`
     INSERT INTO bots (
       name, token, admin_ids, enabled, welcome_message, welcome_image, group_chat_id,
-      channel_url, random_channel_urls, welcome_buttons, created_at, updated_at
+      channel_url, random_channel_urls, welcome_buttons, buttons_per_row, button_layout, created_at, updated_at
     ) VALUES (
       @name, @token, @admin_ids, @enabled, @welcome_message, @welcome_image, @group_chat_id,
-      @channel_url, @random_channel_urls, @welcome_buttons, @created_at, @updated_at
+      @channel_url, @random_channel_urls, @welcome_buttons, @buttons_per_row, @button_layout, @created_at, @updated_at
     )
   `);
   const updateStmt = db.prepare(`
     UPDATE bots SET
       name=@name, token=@token, admin_ids=@admin_ids, enabled=@enabled, welcome_message=@welcome_message,
       welcome_image=@welcome_image, group_chat_id=@group_chat_id, channel_url=@channel_url,
-      random_channel_urls=@random_channel_urls, welcome_buttons=@welcome_buttons, updated_at=@updated_at
+      random_channel_urls=@random_channel_urls, welcome_buttons=@welcome_buttons,
+      buttons_per_row=@buttons_per_row, button_layout=@button_layout, updated_at=@updated_at
     WHERE id=@id
   `);
   const deleteStmt = db.prepare("DELETE FROM bots WHERE id = ?");
@@ -1222,15 +1531,29 @@ function startAdminPanel(db, instances) {
         return;
       }
       if (req.method === "GET" && reqUrl.pathname === "/login") {
+        const loginState = readAdminLoginState();
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(renderLoginPage());
+        res.end(
+          renderLoginPage(
+            loginState.locked
+              ? "Login is locked after 3 failed attempts. Reset from server SSH."
+              : ""
+          )
+        );
         return;
       }
       if (req.method === "POST" && reqUrl.pathname === "/login") {
+        const loginState = readAdminLoginState();
+        if (loginState.locked) {
+          res.writeHead(423, { "Content-Type": "text/html; charset=utf-8" });
+          res.end(renderLoginPage("Login is locked. Reset from server SSH."));
+          return;
+        }
         const form = await readForm(req);
         const user = String(form.get("username") ?? "").trim();
         const pass = String(form.get("password") ?? "");
         if (user === PANEL_USERNAME && pass === PANEL_PASSWORD && PANEL_PASSWORD) {
+          writeAdminLoginState({ failedAttempts: 0, locked: false, lockedAt: "" });
           const sid = crypto.randomBytes(24).toString("hex");
           sessions.add(sid);
           res.writeHead(302, {
@@ -1240,8 +1563,21 @@ function startAdminPanel(db, instances) {
           res.end();
           return;
         }
+        const nextFailedAttempts = Number(loginState.failedAttempts || 0) + 1;
+        const shouldLock = nextFailedAttempts >= PANEL_MAX_FAILED_ATTEMPTS;
+        writeAdminLoginState({
+          failedAttempts: nextFailedAttempts,
+          locked: shouldLock,
+          lockedAt: shouldLock ? new Date().toISOString() : "",
+        });
         res.writeHead(401, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(renderLoginPage("Invalid credentials."));
+        res.end(
+          renderLoginPage(
+            shouldLock
+              ? "Login locked after 3 failed attempts. Reset from server SSH."
+              : `Invalid credentials. Attempt ${nextFailedAttempts}/${PANEL_MAX_FAILED_ATTEMPTS}.`
+          )
+        );
         return;
       }
       if (req.method === "GET" && reqUrl.pathname === "/logout") {
@@ -1289,8 +1625,10 @@ function startAdminPanel(db, instances) {
           welcome_image: String(form.get("welcome_image") ?? "").trim(),
           group_chat_id: String(form.get("group_chat_id") ?? "").trim(),
           channel_url: String(form.get("channel_url") ?? "").trim(),
-          random_channel_urls: String(form.get("random_channel_urls") ?? "").trim(),
+          random_channel_urls: "",
           welcome_buttons: JSON.stringify(buttons),
+          buttons_per_row: parseButtonsPerRow(form.get("buttons_per_row") ?? 2),
+          button_layout: "",
           updated_at: new Date().toISOString(),
         };
         if (!payload.name || !payload.token) {
@@ -1299,26 +1637,31 @@ function startAdminPanel(db, instances) {
         }
         if (payload.id > 0) {
           updateStmt.run(payload);
+          await applyRuntimeForBotId(payload.id);
           redirect(
             res,
-            "/panel?view=bots&notice=Bot%20updated.%20Restart%20app%20to%20apply."
+            "/panel?view=bots&notice=Bot%20updated%20and%20applied%20live."
           );
           return;
         }
-        saveStmt.run({ ...payload, created_at: payload.updated_at });
+        const result = saveStmt.run({ ...payload, created_at: payload.updated_at });
+        await applyRuntimeForBotId(result.lastInsertRowid);
         redirect(
           res,
-          "/panel?view=bots&notice=Bot%20created.%20Restart%20app%20to%20apply."
+          "/panel?view=bots&notice=Bot%20created%20and%20applied%20live."
         );
         return;
       }
       if (req.method === "POST" && reqUrl.pathname === "/panel/delete") {
         const form = await readForm(req);
         const id = Number(form.get("id") || 0);
-        if (id > 0) deleteStmt.run(id);
+        if (id > 0) {
+          await stopInstanceAt(findInstanceIndexByBotId(id));
+          deleteStmt.run(id);
+        }
         redirect(
           res,
-          "/panel?view=bots&notice=Bot%20deleted.%20Restart%20app%20to%20apply."
+          "/panel?view=bots&notice=Bot%20deleted%20and%20stopped%20live."
         );
         return;
       }

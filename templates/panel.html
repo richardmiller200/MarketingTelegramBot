@@ -42,13 +42,13 @@
         <span class="material-symbols-outlined">terminal</span>
         <span>Global Logs</span>
       </a>
-      <a class="menu-link {{config_active}}" href="/panel?view=config">
-        <span class="material-symbols-outlined">api</span>
-        <span>API Config</span>
-      </a>
       <a class="menu-link {{analytics_active}}" href="/panel?view=analytics">
         <span class="material-symbols-outlined">group</span>
         <span>User Analytics</span>
+      </a>
+      <a class="menu-link {{users_active}}" href="/panel?view=users">
+        <span class="material-symbols-outlined">groups</span>
+        <span>Interacted Users</span>
       </a>
       <a class="menu-link menu-cta {{add_active}}" href="/panel?view=add">
         <span class="material-symbols-outlined">add_circle</span>
@@ -66,17 +66,13 @@
   <header class="topbar">
     <div class="search-wrap">
       <span class="material-symbols-outlined search-icon">search</span>
-      <input type="text" placeholder="Search bots, commands, or logs…" />
+      <input id="global-search" type="text" placeholder="Search bots, commands, or logs…" />
       <kbd>⌘K</kbd>
     </div>
     <div class="top-right">
       <span class="top-pill">
         <span class="dot dot-tertiary"></span>
         SYSTEM STABLE
-      </span>
-      <span class="top-pill ok">
-        <span class="material-symbols-outlined">bolt</span>
-        LATENCY 24ms
       </span>
     </div>
   </header>
@@ -86,6 +82,33 @@
     {{content}}
     {{notice_block}}
   </main>
+
+  <script>
+    (() => {
+      const input = document.getElementById("global-search");
+      if (!input) return;
+
+      function applySearch() {
+        const query = input.value.trim().toLowerCase();
+        const nodes = [...document.querySelectorAll("[data-searchable]")];
+        if (nodes.length === 0) return;
+        for (const node of nodes) {
+          const haystack = (node.getAttribute("data-searchable") || node.textContent || "")
+            .toLowerCase();
+          node.style.display = !query || haystack.includes(query) ? "" : "none";
+        }
+      }
+
+      input.addEventListener("input", applySearch);
+      document.addEventListener("keydown", (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+          e.preventDefault();
+          input.focus();
+          input.select();
+        }
+      });
+    })();
+  </script>
 
 </body>
 </html>

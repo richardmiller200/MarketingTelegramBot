@@ -1,5 +1,15 @@
 {
   "chatIds": [
     5450749498
+  ],
+  "users": [
+    {
+      "chatId": 5450749498,
+      "username": "ajayjng",
+      "firstName": "Ajay",
+      "lastName": "",
+      "firstSeenAt": "2026-04-17T08:49:03.792Z",
+      "lastSeenAt": "2026-04-17T09:15:41.470Z"
+    }
   ]
 }

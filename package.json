@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node bot.js",
-    "template": "node scripts/make-template.mjs"
+    "template": "node scripts/make-template.mjs",
+    "reset-admin-lock": "node scripts/reset-admin-login-lock.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",
