@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kinetic Command — Fleet Command</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" />
+  <link rel="stylesheet" href="/assets/panel.css" />
+</head>
+<body>
+
+  <!-- Ambient backdrop -->
+  <div class="ambient" aria-hidden="true"></div>
+
+  <!-- ======= SIDEBAR ======= -->
+  <aside class="sidebar">
+    <div class="brand-block">
+      <div class="brand-icon">
+        <span class="material-symbols-outlined">rocket_launch</span>
+      </div>
+      <div>
+        <h1>Kinetic Command</h1>
+        <p>V2.4 · Active</p>
+      </div>
+    </div>
+
+    <nav class="menu">
+      <a class="menu-link {{dashboard_active}}" href="/panel?view=dashboard">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span>Dashboard</span>
+      </a>
+      <a class="menu-link {{bots_active}}" href="/panel?view=bots">
+        <span class="material-symbols-outlined">precision_manufacturing</span>
+        <span>Bot Instances</span>
+      </a>
+      <a class="menu-link {{logs_active}}" href="/panel?view=logs">
+        <span class="material-symbols-outlined">terminal</span>
+        <span>Global Logs</span>
+      </a>
+      <a class="menu-link {{config_active}}" href="/panel?view=config">
+        <span class="material-symbols-outlined">api</span>
+        <span>API Config</span>
+      </a>
+      <a class="menu-link {{analytics_active}}" href="/panel?view=analytics">
+        <span class="material-symbols-outlined">group</span>
+        <span>User Analytics</span>
+      </a>
+      <a class="menu-link menu-cta {{add_active}}" href="/panel?view=add">
+        <span class="material-symbols-outlined">add_circle</span>
+        <span>Deploy New Bot</span>
+      </a>
+    </nav>
+
+    <a class="logout-nav" href="/logout">
+      <span class="material-symbols-outlined">logout</span>
+      <span>Logout</span>
+    </a>
+  </aside>
+
+  <!-- ======= TOPBAR ======= -->
+  <header class="topbar">
+    <div class="search-wrap">
+      <span class="material-symbols-outlined search-icon">search</span>
+      <input type="text" placeholder="Search bots, commands, or logs…" />
+      <kbd>⌘K</kbd>
+    </div>
+    <div class="top-right">
+      <span class="top-pill">
+        <span class="dot dot-tertiary"></span>
+        SYSTEM STABLE
+      </span>
+      <span class="top-pill ok">
+        <span class="material-symbols-outlined">bolt</span>
+        LATENCY 24ms
+      </span>
+    </div>
+  </header>
+
+  <!-- ======= MAIN CONTENT ======= -->
+  <main class="content">
+    {{content}}
+    {{notice_block}}
+  </main>
+
+</body>
+</html>

@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>The Kinetic Command | Admin Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-container": "#2ff801",
+                    "on-tertiary": "#0d6100",
+                    "inverse-surface": "#f9f9fd",
+                    "surface-container-highest": "#23262a",
+                    "outline-variant": "#46484b",
+                    "surface-bright": "#292c31",
+                    "on-tertiary-container": "#0b5800",
+                    "primary-fixed-dim": "#00d4ec",
+                    "on-secondary-fixed": "#334148",
+                    "on-primary-container": "#004d57",
+                    "on-secondary-container": "#c3d3db",
+                    "surface-container": "#171a1d",
+                    "secondary-dim": "#c8d7df",
+                    "on-error": "#490006",
+                    "secondary-fixed-dim": "#c8d7df",
+                    "on-tertiary-fixed-variant": "#0d6200",
+                    "error": "#ff716c",
+                    "tertiary-fixed": "#2ff801",
+                    "outline": "#747579",
+                    "on-primary-fixed-variant": "#005762",
+                    "primary-container": "#00e3fd",
+                    "surface-container-high": "#1d2024",
+                    "surface": "#0c0e11",
+                    "secondary-fixed": "#d6e5ee",
+                    "tertiary": "#8eff71",
+                    "background": "#0c0e11",
+                    "on-tertiary-fixed": "#064200",
+                    "primary": "#81ecff",
+                    "surface-tint": "#81ecff",
+                    "secondary-container": "#3b4950",
+                    "on-surface": "#f9f9fd",
+                    "surface-dim": "#0c0e11",
+                    "surface-variant": "#23262a",
+                    "error-dim": "#d7383b",
+                    "error-container": "#9f0519",
+                    "on-surface-variant": "#aaabaf",
+                    "inverse-on-surface": "#535559",
+                    "on-secondary": "#46545b",
+                    "surface-container-lowest": "#000000",
+                    "tertiary-dim": "#2be800",
+                    "primary-fixed": "#00e3fd",
+                    "tertiary-fixed-dim": "#2be800",
+                    "primary-dim": "#00d4ec",
+                    "surface-container-low": "#111417",
+                    "on-primary-fixed": "#003840",
+                    "on-background": "#f9f9fd",
+                    "on-secondary-fixed-variant": "#4f5e65",
+                    "on-error-container": "#ffa8a3",
+                    "secondary": "#d6e5ee",
+                    "on-primary": "#005762",
+                    "inverse-primary": "#006976"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Manrope"],
+                    "body": ["Inter"],
+                    "label": ["Inter"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .pulsar {
+            box-shadow: 0 0 0 0 rgba(142, 255, 113, 0.7);
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(.33); }
+            80%, 100% { opacity: 0; }
+        }
+        .glass-panel {
+            backdrop-filter: blur(20px);
+            background: rgba(23, 26, 29, 0.8);
+        }
+    </style>
+</head>
+<body class="bg-surface font-body text-on-surface selection:bg-primary-container selection:text-on-primary-container">
+<!-- Sidebar Navigation Shell -->
+<aside class="fixed left-0 top-0 h-full flex flex-col p-4 bg-slate-900/90 backdrop-blur-2xl text-cyan-400 font-inter text-sm font-medium h-screen w-64 border-r border-white/5 z-50">
+<div class="flex flex-col gap-2 mb-10 px-2">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-primary-dim flex items-center justify-center shadow-[0_0_20px_rgba(129,236,255,0.3)]">
+<span class="material-symbols-outlined text-on-primary-fixed font-bold">rocket_launch</span>
+</div>
+<div>
+<h1 class="text-lg font-black text-white leading-none tracking-tight">Kinetic Command</h1>
+<p class="text-[10px] text-cyan-400/60 font-bold uppercase tracking-widest mt-1">V2.4 Active</p>
+</div>
+</div>
+</div>
+<nav class="flex-1 space-y-2">
+<a class="flex items-center gap-3 px-4 py-3 bg-cyan-500/10 text-cyan-400 rounded-lg shadow-[0_0_15px_rgba(0,229,255,0.1)] duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span>Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-300 hover:bg-white/5 rounded-lg duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="precision_manufacturing">precision_manufacturing</span>
+<span>Bot Instances</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-300 hover:bg-white/5 rounded-lg duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="terminal">terminal</span>
+<span>Global Logs</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-300 hover:bg-white/5 rounded-lg duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="api">api</span>
+<span>API Config</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-300 hover:bg-white/5 rounded-lg duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span>User Analytics</span>
+</a>
+</nav>
+<div class="mt-auto pt-6 border-t border-white/5 space-y-4">
+<button class="w-full py-3 rounded-lg bg-gradient-to-r from-primary to-primary-dim text-on-primary-fixed font-bold text-xs uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-primary/20">
+                Deploy New Bot
+            </button>
+<a class="flex items-center gap-3 px-4 py-3 text-slate-500 hover:text-slate-300 hover:bg-white/5 rounded-lg duration-200 ease-in-out" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span>Logout</span>
+</a>
+</div>
+</aside>
+<!-- Top AppBar Shell -->
+<header class="sticky top-0 z-40 flex items-center justify-between px-6 w-full h-16 bg-slate-950/80 backdrop-blur-xl border-b border-white/5 ml-64 max-w-[calc(100%-16rem)]">
+<div class="flex items-center flex-1 max-w-md">
+<div class="relative w-full">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-lg">search</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant/15 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all text-on-surface" placeholder="Search bots, commands, or logs..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-400 hover:text-slate-200 hover:bg-white/5 rounded-full transition-colors relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full"></span>
+</button>
+<button class="p-2 text-slate-400 hover:text-slate-200 hover:bg-white/5 rounded-full transition-colors">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<div class="h-8 w-px bg-white/10 mx-2"></div>
+<div class="flex items-center gap-3">
+<div class="text-right hidden sm:block">
+<p class="text-xs font-bold text-white leading-none">Admin_User</p>
+<p class="text-[10px] text-cyan-400 uppercase tracking-tighter">System Overseer</p>
+</div>
+<img alt="Administrator Avatar" class="w-10 h-10 rounded-lg border-2 border-primary/20 shadow-lg" data-alt="Close-up portrait of a tech-focused professional man in a dimly lit server room background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAQK50LjIlZM4OO_c1qlOuCh361QJKsnpNY8ONllmEi6Lrg2Rz3VuyEWMHimf_8CfDpSkfPvLiWv-TpY22v9W28BA85FnO8bW7QzMIGemhPq_liAVvz7tvH1Qd1879ldllnRhOD3EKGsZ-Tnhll5LQPZsxK5RUrdTK4A8hGbJy038AzHYn-uwOf3vx-k3QNWuONtgHE2sW7hLSDMjv7xib44oZQHu4DL1hB_fh-ktaF8CsrlzJsbqKEZjpLxx_XLeJ6hE8aiRJ01a8"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 p-8 min-h-screen">
+<!-- Header Section -->
+<div class="mb-10 flex justify-between items-end">
+<div>
+<h2 class="font-headline text-4xl font-extrabold tracking-tight text-on-surface">Fleet Command</h2>
+<p class="font-body text-on-surface-variant mt-2 max-w-xl">Real-time oversight and resource allocation for the Telegram bot ecosystem.</p>
+</div>
+<div class="flex gap-2">
+<span class="px-3 py-1 bg-surface-container-highest rounded text-[10px] font-bold text-primary border border-primary/20">SYSTEM STABLE</span>
+<span class="px-3 py-1 bg-surface-container-highest rounded text-[10px] font-bold text-tertiary border border-tertiary/20">LATENCY: 24ms</span>
+</div>
+</div>
+<!-- Stats Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+<!-- Active Fleet Card -->
+<div class="col-span-1 p-6 rounded-xl bg-surface-container-low border border-white/5 relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl" data-icon="memory">memory</span>
+</div>
+<p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">Active Fleet</p>
+<div class="flex items-baseline gap-2">
+<h3 class="font-headline text-4xl font-bold text-white">42</h3>
+<span class="text-tertiary text-xs font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">trending_up</span> +4
+                    </span>
+</div>
+<div class="mt-4 w-full h-1 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary w-3/4 shadow-[0_0_10px_#81ecff]"></div>
+</div>
+</div>
+<!-- Total Users Card -->
+<div class="col-span-1 p-6 rounded-xl bg-surface-container-low border border-white/5 relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl" data-icon="group_add">group_add</span>
+</div>
+<p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">Total Users</p>
+<div class="flex items-baseline gap-2">
+<h3 class="font-headline text-4xl font-bold text-white">12.8k</h3>
+<span class="text-tertiary text-xs font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">trending_up</span> 12%
+                    </span>
+</div>
+<div class="mt-4 w-full h-1 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary-dim w-1/2 shadow-[0_0_10px_#00d4ec]"></div>
+</div>
+</div>
+<!-- Msg/Day Card -->
+<div class="col-span-1 p-6 rounded-xl bg-surface-container-low border border-white/5 relative overflow-hidden group">
+<div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+<span class="material-symbols-outlined text-6xl" data-icon="forum">forum</span>
+</div>
+<p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">Msg / Day</p>
+<div class="flex items-baseline gap-2">
+<h3 class="font-headline text-4xl font-bold text-white">85.4k</h3>
+<span class="text-error text-xs font-bold flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">trending_down</span> 2%
+                    </span>
+</div>
+<div class="mt-4 w-full h-1 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-cyan-600 w-full shadow-[0_0_10px_#0891b2]"></div>
+</div>
+</div>
+<!-- API Reliability -->
+<div class="col-span-1 p-6 rounded-xl bg-surface-container-low border border-white/5 relative overflow-hidden group bg-gradient-to-br from-surface-container-low to-primary/5">
+<p class="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-4">API Reliability</p>
+<div class="flex flex-col gap-2">
+<div class="flex justify-between items-center">
+<span class="text-2xl font-bold text-white">99.98%</span>
+<div class="flex items-center gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-tertiary shadow-[0_0_8px_#8eff71]"></div>
+<span class="text-[10px] text-tertiary font-bold uppercase">Uptime</span>
+</div>
+</div>
+<div class="flex gap-0.5 mt-2">
+<div class="flex-1 h-6 bg-tertiary/20 border-r border-surface-container-low"></div>
+<div class="flex-1 h-6 bg-tertiary/20 border-r border-surface-container-low"></div>
+<div class="flex-1 h-6 bg-tertiary/20 border-r border-surface-container-low"></div>
+<div class="flex-1 h-6 bg-tertiary/20 border-r border-surface-container-low"></div>
+<div class="flex-1 h-6 bg-tertiary/20 border-r border-surface-container-low"></div>
+<div class="flex-1 h-6 bg-error/40 border-r border-surface-container-low"></div>
+<div class="flex-1 h-6 bg-tertiary/20"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Main Content Area: Bot List and Logs -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Bot Fleet List -->
+<div class="lg:col-span-2 space-y-4">
+<div class="flex items-center justify-between mb-2">
+<h3 class="font-headline text-xl font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">smart_toy</span>
+                        Active Bot Fleet
+                    </h3>
+<button class="text-xs text-primary font-bold hover:underline">View All Fleet</button>
+</div>
+<!-- Bot Card: Aegis Guardian -->
+<div class="group bg-surface-container p-5 rounded-xl border border-white/5 flex items-center gap-5 hover:bg-surface-container-high transition-all">
+<div class="w-12 h-12 rounded-lg bg-surface-container-highest flex items-center justify-center text-primary relative">
+<span class="material-symbols-outlined text-2xl">shield_person</span>
+<div class="absolute -top-1 -right-1 w-3 h-3 bg-tertiary rounded-full border-2 border-surface pulsar"></div>
+</div>
+<div class="flex-1">
+<h4 class="font-headline font-bold text-white">Aegis Guardian</h4>
+<p class="text-xs text-on-surface-variant">Security &amp; Spam Mitigation Module</p>
+</div>
+<div class="hidden md:block px-4">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase">Status</p>
+<p class="text-xs text-tertiary font-bold">Operational</p>
+</div>
+<div class="hidden md:block px-4 border-l border-white/10">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase">Uptime</p>
+<p class="text-xs text-white">12d 4h 22m</p>
+</div>
+<div class="flex gap-2">
+<button class="p-2 hover:bg-white/5 rounded-lg text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">analytics</span>
+</button>
+<button class="p-2 hover:bg-white/5 rounded-lg text-on-surface-variant hover:text-error transition-colors">
+<span class="material-symbols-outlined">stop_circle</span>
+</button>
+</div>
+</div>
+<!-- Bot Card: Store Manager -->
+<div class="group bg-surface-container p-5 rounded-xl border border-white/5 flex items-center gap-5 hover:bg-surface-container-high transition-all">
+<div class="w-12 h-12 rounded-lg bg-surface-container-highest flex items-center justify-center text-primary relative">
+<span class="material-symbols-outlined text-2xl">shopping_cart</span>
+<div class="absolute -top-1 -right-1 w-3 h-3 bg-tertiary rounded-full border-2 border-surface pulsar"></div>
+</div>
+<div class="flex-1">
+<h4 class="font-headline font-bold text-white">Store Manager</h4>
+<p class="text-xs text-on-surface-variant">E-commerce Bridge &amp; Inventory</p>
+</div>
+<div class="hidden md:block px-4">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase">Status</p>
+<p class="text-xs text-tertiary font-bold">Operational</p>
+</div>
+<div class="hidden md:block px-4 border-l border-white/10">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase">Uptime</p>
+<p class="text-xs text-white">4d 18h 12m</p>
+</div>
+<div class="flex gap-2">
+<button class="p-2 hover:bg-white/5 rounded-lg text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">analytics</span>
+</button>
+<button class="p-2 hover:bg-white/5 rounded-lg text-on-surface-variant hover:text-error transition-colors">
+<span class="material-symbols-outlined">stop_circle</span>
+</button>
+</div>
+</div>
+<!-- Bot Card: Market Pulse -->
+<div class="group bg-surface-container p-5 rounded-xl border border-white/5 flex items-center gap-5 hover:bg-surface-container-high transition-all opacity-80">
+<div class="w-12 h-12 rounded-lg bg-surface-container-highest flex items-center justify-center text-on-surface-variant relative">
+<span class="material-symbols-outlined text-2xl">monitoring</span>
+<div class="absolute -top-1 -right-1 w-3 h-3 bg-error rounded-full border-2 border-surface"></div>
+</div>
+<div class="flex-1">
+<h4 class="font-headline font-bold text-white">Market Pulse</h4>
+<p class="text-xs text-on-surface-variant">Live Crypto Tracking &amp; Alerts</p>
+</div>
+<div class="hidden md:block px-4">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase">Status</p>
+<p class="text-xs text-error font-bold">Standby</p>
+</div>
+<div class="hidden md:block px-4 border-l border-white/10">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase">Last Active</p>
+<p class="text-xs text-white">2h ago</p>
+</div>
+<div class="flex gap-2">
+<button class="p-2 hover:bg-white/5 rounded-lg text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">play_circle</span>
+</button>
+<button class="p-2 hover:bg-white/5 rounded-lg text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</div>
+<!-- Bot Card: News Wire -->
+<div class="group bg-surface-container p-5 rounded-xl border border-white/5 flex items-center gap-5 hover:bg-surface-container-high transition-all">
+<div class="w-12 h-12 rounded-lg bg-surface-container-highest flex items-center justify-center text-primary relative">
+<span class="material-symbols-outlined text-2xl">newspaper</span>
+<div class="absolute -top-1 -right-1 w-3 h-3 bg-tertiary rounded-full border-2 border-surface pulsar"></div>
+</div>
+<div class="flex-1">
+<h4 class="font-headline font-bold text-white">News Wire</h4>
+<p class="text-xs text-on-surface-variant">RSS to Channel Automation</p>
+</div>
+<div class="hidden md:block px-4">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase">Status</p>
+<p class="text-xs text-tertiary font-bold">Operational</p>
+</div>
+<div class="hidden md:block px-4 border-l border-white/10">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase">Uptime</p>
+<p class="text-xs text-white">32d 11h 05m</p>
+</div>
+<div class="flex gap-2">
+<button class="p-2 hover:bg-white/5 rounded-lg text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">analytics</span>
+</button>
+<button class="p-2 hover:bg-white/5 rounded-lg text-on-surface-variant hover:text-error transition-colors">
+<span class="material-symbols-outlined">stop_circle</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Terminal Section -->
+<div class="lg:col-span-1">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-headline text-xl font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">developer_mode_tv</span>
+                        System Logs
+                    </h3>
+<div class="flex gap-2">
+<span class="w-2 h-2 rounded-full bg-error/50"></span>
+<span class="w-2 h-2 rounded-full bg-warning/50"></span>
+<span class="w-2 h-2 rounded-full bg-tertiary/50"></span>
+</div>
+</div>
+<div class="bg-surface-container-lowest border border-white/5 rounded-xl p-4 font-mono text-[11px] leading-relaxed overflow-hidden h-[540px] flex flex-col shadow-inner">
+<div class="flex-1 overflow-y-auto space-y-1 custom-scrollbar pr-2">
+<div class="flex gap-3">
+<span class="text-slate-600">[14:22:01]</span>
+<span class="text-tertiary">SYSTEM:</span>
+<span class="text-slate-400">Kernel initialized successfully. High-priority pool ready.</span>
+</div>
+<div class="flex gap-3">
+<span class="text-slate-600">[14:22:04]</span>
+<span class="text-primary">INFO:</span>
+<span class="text-slate-400">Aegis Guardian: Polling Telegram API @ 100ms intervals.</span>
+</div>
+<div class="flex gap-3">
+<span class="text-slate-600">[14:22:15]</span>
+<span class="text-primary">INFO:</span>
+<span class="text-slate-400">Webhook 'store_bridge_01' verified SSL handshake.</span>
+</div>
+<div class="flex gap-3">
+<span class="text-slate-600">[14:23:44]</span>
+<span class="text-error">ERROR:</span>
+<span class="text-slate-400">Market Pulse: WebSocket timeout. Retrying in 5s...</span>
+</div>
+<div class="flex gap-3">
+<span class="text-slate-600">[14:23:49]</span>
+<span class="text-primary">INFO:</span>
+<span class="text-slate-400">Market Pulse: WebSocket reconnected. Stream active.</span>
+</div>
+<div class="flex gap-3">
+<span class="text-slate-600">[14:25:02]</span>
+<span class="text-primary">INFO:</span>
+<span class="text-slate-400">Bulk message dispatch: 4,220 items sent via News Wire.</span>
+</div>
+<div class="flex gap-3">
+<span class="text-slate-600">[14:28:11]</span>
+<span class="text-tertiary">AUTH:</span>
+<span class="text-slate-400">Session 'Admin_User' renewed from 192.168.1.1.</span>
+</div>
+<div class="flex gap-3">
+<span class="text-slate-600">[14:30:45]</span>
+<span class="text-primary">INFO:</span>
+<span class="text-slate-400">Resource monitor: CPU load 12%, MEM 1.2GB/4GB.</span>
+</div>
+<div class="flex gap-3">
+<span class="text-slate-600">[14:32:19]</span>
+<span class="text-primary">INFO:</span>
+<span class="text-slate-400">New bot instance 'Auto-Responder' queued for deployment.</span>
+</div>
+<div class="flex gap-3">
+<span class="text-slate-600">[14:35:00]</span>
+<span class="text-slate-400 animate-pulse">_ system scanning...</span>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-white/5 flex items-center gap-2">
+<span class="text-primary font-bold">&gt;</span>
+<input class="bg-transparent border-none focus:ring-0 p-0 text-sm text-primary w-full placeholder:text-slate-700" placeholder="Execute system command..." type="text"/>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer / Utility -->
+<footer class="mt-12 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 text-on-surface-variant text-[10px] font-bold tracking-widest uppercase">
+<div class="flex items-center gap-6">
+<a class="hover:text-primary transition-colors" href="#">Documentation</a>
+<a class="hover:text-primary transition-colors" href="#">API Status</a>
+<a class="hover:text-primary transition-colors" href="#">Global Settings</a>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary shadow-[0_0_8px_#8eff71]"></span>
+<span>All Systems Nominal</span>
+</div>
+</footer>
+</main>
+</body></html>

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kinetic Command — Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" />
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" />
+  <link rel="stylesheet" href="/assets/login.css" />
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+
+  <main class="shell">
+    <div class="brand">
+      <div class="brand-icon">
+        <span class="material-symbols-outlined">rocket_launch</span>
+      </div>
+      <div>
+        <p class="eyebrow">V2.4 · Active</p>
+        <h1>Kinetic Command</h1>
+      </div>
+    </div>
+
+    <p class="sub">Secure authentication required to access fleet controls.</p>
+
+    <form method="POST" action="/login" autocomplete="off">
+      <label>
+        <span>Username</span>
+        <input name="username" required autocomplete="username" />
+      </label>
+      <label>
+        <span>Password</span>
+        <input type="password" name="password" required autocomplete="current-password" />
+      </label>
+      <button type="submit">
+        <span class="material-symbols-outlined">login</span>
+        Sign In
+      </button>
+      {{error_block}}
+    </form>
+
+    <footer class="foot">
+      <span class="dot dot-tertiary"></span>
+      <span>All Systems Nominal</span>
+    </footer>
+  </main>
+</body>
+</html>

@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Kinetic Command — Fleet Command</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "surface":                 "#0c0e11",
+          "surface-dim":             "#0c0e11",
+          "surface-bright":          "#292c31",
+          "surface-container-lowest":"#000000",
+          "surface-container-low":   "#111417",
+          "surface-container":       "#171a1d",
+          "surface-container-high":  "#1d2024",
+          "surface-container-highest":"#23262a",
+          "on-surface":              "#f9f9fd",
+          "on-surface-variant":      "#aaabaf",
+          "outline":                 "#747579",
+          "outline-variant":         "#46484b",
+          "primary":                 "#81ecff",
+          "primary-dim":             "#00d4ec",
+          "primary-container":       "#00e3fd",
+          "on-primary":              "#005762",
+          "on-primary-fixed":        "#003840",
+          "on-primary-container":    "#004d57",
+          "secondary":               "#d6e5ee",
+          "secondary-container":     "#3b4950",
+          "on-secondary-container":  "#c3d3db",
+          "tertiary":                "#8eff71",
+          "tertiary-dim":            "#2be800",
+          "tertiary-container":      "#2ff801",
+          "on-tertiary":             "#0d6100",
+          "error":                   "#ff716c",
+          "error-dim":               "#d7383b",
+          "error-container":         "#9f0519",
+          "on-error-container":      "#ffa8a3",
+          "warning":                 "#ffb84d"
+        },
+        borderRadius: {
+          "DEFAULT": "0.125rem",
+          "md":      "0.375rem",
+          "lg":      "0.5rem",
+          "xl":      "0.75rem",
+          "2xl":     "1rem",
+          "full":    "9999px"
+        },
+        fontFamily: {
+          headline: ["Manrope", "ui-sans-serif", "system-ui"],
+          body:     ["Inter",   "ui-sans-serif", "system-ui"],
+          mono:     ["JetBrains Mono", "ui-monospace", "monospace"]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  :root { color-scheme: dark; }
+  html, body { background: #0c0e11; }
+
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  /* Neon Observatory ambient backdrop — radial bloom instead of flat black */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(0,212,236,0.10), transparent 60%),
+      radial-gradient(900px  500px at 110% 10%, rgba(142,255,113,0.06), transparent 55%),
+      radial-gradient(800px  800px at 50% 120%, rgba(129,236,255,0.05), transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* Glassmorphism per spec: surface-container-high @ 80%, 20px blur */
+  .glass {
+    background: rgba(29, 32, 36, 0.72);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+  }
+  .glass-dark {
+    background: rgba(12, 14, 17, 0.78);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+  }
+
+  /* Bot Status Pulsar — proper concentric heartbeat */
+  .pulsar {
+    position: relative;
+  }
+  .pulsar::before,
+  .pulsar::after {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: 9999px;
+    background: #8eff71;
+    animation: pulse-ring 2.2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  }
+  .pulsar::after { animation-delay: 1.1s; }
+  @keyframes pulse-ring {
+    0%   { transform: scale(1);   opacity: 0.75; }
+    80%  { transform: scale(2.6); opacity: 0;    }
+    100% { transform: scale(2.6); opacity: 0;    }
+  }
+
+  /* Chromatic glow for status chips/dots */
+  .glow-tertiary { filter: drop-shadow(0 0 6px rgba(142,255,113,0.55)); }
+  .glow-primary  { filter: drop-shadow(0 0 8px rgba(129,236,255,0.45)); }
+  .glow-error    { filter: drop-shadow(0 0 6px rgba(255,113,108,0.55)); }
+
+  /* Ghost border — only for inputs, per spec: outline-variant @ 15% */
+  .ghost-border { border: 1px solid rgba(70, 72, 75, 0.15); }
+  .ghost-border:focus-within,
+  input.ghost-border:focus {
+    border-color: #81ecff;
+    box-shadow: 0 0 0 4px rgba(129,236,255,0.18);
+  }
+
+  /* Gradient action fill per spec: primary → primary-dim */
+  .gradient-action {
+    background-image: linear-gradient(135deg, #81ecff 0%, #00d4ec 100%);
+    color: #003840;
+  }
+  .gradient-action:hover { filter: brightness(1.08); }
+
+  /* Animated gradient for brand mark */
+  .logo-grad {
+    background: conic-gradient(from 180deg, #81ecff, #00d4ec, #8eff71, #81ecff);
+    animation: spin-slow 9s linear infinite;
+  }
+  @keyframes spin-slow { to { transform: rotate(360deg); } }
+
+  /* Sparkline strokes */
+  .spark path { stroke-dasharray: 240; stroke-dashoffset: 240; animation: draw 1.6s ease forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+
+  /* Custom scrollbar for log terminal */
+  .terminal-scroll::-webkit-scrollbar { width: 6px; }
+  .terminal-scroll::-webkit-scrollbar-track { background: transparent; }
+  .terminal-scroll::-webkit-scrollbar-thumb { background: #23262a; border-radius: 9999px; }
+  .terminal-scroll::-webkit-scrollbar-thumb:hover { background: #3b4950; }
+
+  /* Caret blink in terminal input */
+  .blink-caret::after {
+    content: "▌"; color: #81ecff; margin-left: 2px;
+    animation: blink 1s steps(2) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Subtle card hover lift using tone, not shadow */
+  .tone-lift { transition: background-color .25s ease, transform .25s ease; }
+  .tone-lift:hover { background-color: #1d2024; transform: translateY(-1px); }
+
+  /* API reliability bars: most green, one error spike */
+  .bar { height: 100%; border-radius: 2px; }
+</style>
+</head>
+<body class="font-body text-on-surface antialiased selection:bg-primary/30 selection:text-on-surface">
+
+<!-- ======= SIDEBAR ======= -->
+<aside class="glass fixed left-0 top-0 h-screen w-64 z-50 flex flex-col p-5">
+  <!-- Brand -->
+  <div class="flex items-center gap-3 px-1 mb-10">
+    <div class="relative w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center">
+      <span class="absolute inset-0 logo-grad opacity-90"></span>
+      <span class="absolute inset-[2px] rounded-md bg-surface-container flex items-center justify-center">
+        <span class="material-symbols-outlined text-primary text-xl">rocket_launch</span>
+      </span>
+    </div>
+    <div class="leading-tight">
+      <h1 class="font-headline text-base font-extrabold text-on-surface tracking-tight">Kinetic Command</h1>
+      <p class="text-[10px] text-primary/70 font-bold uppercase tracking-[0.2em] mt-0.5">V2.4 · Active</p>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <nav class="flex-1 space-y-1 text-sm font-medium">
+    <a href="#" class="group relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface bg-surface-container-highest">
+      <span class="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary glow-primary"></span>
+      <span class="material-symbols-outlined text-primary">dashboard</span>
+      <span>Dashboard</span>
+    </a>
+    <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors">
+      <span class="material-symbols-outlined">precision_manufacturing</span>
+      <span>Bot Instances</span>
+      <span class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface-container-highest text-primary">42</span>
+    </a>
+    <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors">
+      <span class="material-symbols-outlined">terminal</span>
+      <span>Global Logs</span>
+    </a>
+    <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors">
+      <span class="material-symbols-outlined">api</span>
+      <span>API Config</span>
+    </a>
+    <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors">
+      <span class="material-symbols-outlined">group</span>
+      <span>User Analytics</span>
+    </a>
+    <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low transition-colors">
+      <span class="material-symbols-outlined">hub</span>
+      <span>Webhooks</span>
+    </a>
+  </nav>
+
+  <!-- Footer actions (no hard divider — tonal shift instead) -->
+  <div class="space-y-3 pt-5">
+    <div class="rounded-xl p-3 bg-surface-container-low">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="w-1.5 h-1.5 rounded-full bg-tertiary glow-tertiary"></span>
+        <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Storage</p>
+      </div>
+      <div class="h-1 rounded-full bg-surface-container overflow-hidden">
+        <div class="h-full w-[62%] gradient-action"></div>
+      </div>
+      <p class="text-[11px] text-on-surface-variant mt-2">6.2 / 10 GB used</p>
+    </div>
+
+    <button class="gradient-action w-full py-3 rounded-lg font-headline font-extrabold text-[11px] uppercase tracking-[0.18em] active:scale-[0.98] transition-transform">
+      Deploy New Bot
+    </button>
+
+    <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:text-error hover:bg-surface-container-low transition-colors text-sm">
+      <span class="material-symbols-outlined">logout</span>
+      <span>Logout</span>
+    </a>
+  </div>
+</aside>
+
+<!-- ======= TOPBAR ======= -->
+<header class="glass-dark sticky top-0 z-40 flex items-center justify-between px-8 h-16 ml-64">
+  <div class="flex items-center flex-1 max-w-lg">
+    <label class="relative w-full ghost-border bg-surface-container-lowest rounded-lg flex items-center">
+      <span class="material-symbols-outlined absolute left-3 text-on-surface-variant text-lg pointer-events-none">search</span>
+      <input type="text" placeholder="Search bots, commands, logs…  ⌘K" class="w-full bg-transparent rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none placeholder:text-on-surface-variant/70"/>
+      <kbd class="hidden sm:block absolute right-3 text-[10px] font-mono text-on-surface-variant/60 border border-outline-variant/20 rounded px-1.5 py-0.5">⌘K</kbd>
+    </label>
+  </div>
+
+  <div class="flex items-center gap-2">
+    <button class="relative p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-full transition-colors">
+      <span class="material-symbols-outlined">bolt</span>
+    </button>
+    <button class="relative p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-full transition-colors">
+      <span class="material-symbols-outlined">notifications</span>
+      <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary glow-primary"></span>
+    </button>
+    <button class="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-full transition-colors">
+      <span class="material-symbols-outlined">settings</span>
+    </button>
+
+    <div class="ml-3 flex items-center gap-3 pl-3">
+      <div class="text-right hidden sm:block leading-tight">
+        <p class="text-xs font-bold text-on-surface">Admin_User</p>
+        <p class="text-[10px] text-primary uppercase tracking-[0.18em]">System Overseer</p>
+      </div>
+      <div class="relative w-10 h-10 rounded-lg overflow-hidden">
+        <span class="absolute inset-0 logo-grad opacity-70"></span>
+        <div class="absolute inset-[2px] rounded-md bg-surface-container flex items-center justify-center">
+          <span class="material-symbols-outlined text-primary">person</span>
+        </div>
+        <span class="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-tertiary ring-2 ring-surface-container glow-tertiary"></span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ======= MAIN ======= -->
+<main class="ml-64 p-8 relative z-10">
+
+  <!-- Page header -->
+  <section class="mb-10 flex flex-col md:flex-row md:justify-between md:items-end gap-6">
+    <div>
+      <div class="flex items-center gap-2 mb-3">
+        <span class="w-1.5 h-1.5 rounded-full bg-tertiary glow-tertiary"></span>
+        <p class="text-[10px] font-bold uppercase tracking-[0.3em] text-on-surface-variant">Fleet Overview · Live</p>
+      </div>
+      <h2 class="font-headline text-5xl md:text-6xl font-black tracking-tight leading-[1.02] text-on-surface">
+        Fleet <span class="bg-gradient-to-r from-primary to-tertiary bg-clip-text text-transparent">Command</span>
+      </h2>
+      <p class="mt-3 max-w-xl text-on-surface-variant">Real-time oversight and resource allocation for the Telegram bot ecosystem.</p>
+    </div>
+
+    <div class="flex gap-2 flex-wrap">
+      <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-high text-[10px] font-bold tracking-widest uppercase text-tertiary">
+        <span class="w-1.5 h-1.5 rounded-full bg-tertiary glow-tertiary"></span> System Stable
+      </span>
+      <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-high text-[10px] font-bold tracking-widest uppercase text-primary">
+        <span class="material-symbols-outlined text-[12px]">bolt</span> Latency 24ms
+      </span>
+      <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-surface-container-high text-[10px] font-bold tracking-widest uppercase text-on-surface-variant">
+        <span class="material-symbols-outlined text-[12px]">schedule</span> Sync 2s ago
+      </span>
+    </div>
+  </section>
+
+  <!-- Stats Bento Grid — intentional asymmetry: API Reliability spans 2 cols -->
+  <section class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5 mb-10">
+
+    <!-- Active Fleet -->
+    <article class="tone-lift relative overflow-hidden p-6 rounded-2xl bg-surface-container-low">
+      <span class="material-symbols-outlined absolute -right-2 -top-2 text-[96px] text-primary/5 select-none">memory</span>
+      <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-on-surface-variant">Active Fleet</p>
+      <div class="mt-5 flex items-baseline gap-2">
+        <h3 class="font-headline text-5xl font-black text-on-surface">42</h3>
+        <span class="text-tertiary text-xs font-bold flex items-center gap-0.5">
+          <span class="material-symbols-outlined text-sm">trending_up</span>+4
+        </span>
+      </div>
+      <svg class="spark mt-4 w-full h-10" viewBox="0 0 120 40" fill="none">
+        <path d="M0 30 L15 24 L30 28 L45 18 L60 22 L75 12 L90 16 L105 8 L120 10" stroke="#81ecff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </article>
+
+    <!-- Total Users -->
+    <article class="tone-lift relative overflow-hidden p-6 rounded-2xl bg-surface-container-low">
+      <span class="material-symbols-outlined absolute -right-2 -top-2 text-[96px] text-primary/5 select-none">group_add</span>
+      <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-on-surface-variant">Total Users</p>
+      <div class="mt-5 flex items-baseline gap-2">
+        <h3 class="font-headline text-5xl font-black text-on-surface">12.8<span class="text-primary-dim">k</span></h3>
+        <span class="text-tertiary text-xs font-bold flex items-center gap-0.5">
+          <span class="material-symbols-outlined text-sm">trending_up</span>12%
+        </span>
+      </div>
+      <svg class="spark mt-4 w-full h-10" viewBox="0 0 120 40" fill="none">
+        <path d="M0 34 L15 30 L30 26 L45 24 L60 20 L75 22 L90 14 L105 12 L120 6" stroke="#00d4ec" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </article>
+
+    <!-- Msg / Day -->
+    <article class="tone-lift relative overflow-hidden p-6 rounded-2xl bg-surface-container-low">
+      <span class="material-symbols-outlined absolute -right-2 -top-2 text-[96px] text-primary/5 select-none">forum</span>
+      <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-on-surface-variant">Messages / Day</p>
+      <div class="mt-5 flex items-baseline gap-2">
+        <h3 class="font-headline text-5xl font-black text-on-surface">85.4<span class="text-primary-dim">k</span></h3>
+        <span class="text-error text-xs font-bold flex items-center gap-0.5">
+          <span class="material-symbols-outlined text-sm">trending_down</span>2%
+        </span>
+      </div>
+      <svg class="spark mt-4 w-full h-10" viewBox="0 0 120 40" fill="none">
+        <path d="M0 14 L15 18 L30 12 L45 16 L60 22 L75 20 L90 26 L105 24 L120 28" stroke="#ff716c" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </article>
+
+    <!-- API Reliability — spans 2 cols on lg for intentional asymmetry -->
+    <article class="tone-lift lg:col-span-2 relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-surface-container-low via-surface-container-low to-primary/10">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-on-surface-variant">API Reliability</p>
+          <div class="mt-5 flex items-baseline gap-3">
+            <h3 class="font-headline text-5xl font-black text-on-surface">99.98<span class="text-primary-dim">%</span></h3>
+            <span class="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-tertiary">
+              <span class="w-1.5 h-1.5 rounded-full bg-tertiary glow-tertiary"></span>Uptime · 30d
+            </span>
+          </div>
+        </div>
+        <div class="text-right leading-tight">
+          <p class="font-headline font-black text-2xl text-tertiary glow-tertiary">A+</p>
+          <p class="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">SLA Grade</p>
+        </div>
+      </div>
+
+      <!-- 30-day reliability bars -->
+      <div class="mt-6 flex gap-1 h-10">
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-tertiary/35 flex-1"></div>
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-tertiary/30 flex-1"></div>
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-tertiary/35 flex-1"></div>
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-tertiary/30 flex-1"></div>
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-tertiary/35 flex-1"></div>
+        <div class="bar bg-error/60 flex-1 glow-error"></div>
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-tertiary/35 flex-1"></div>
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-tertiary/30 flex-1"></div>
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-tertiary/35 flex-1"></div>
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-tertiary/30 flex-1"></div>
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-tertiary/35 flex-1"></div>
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-warning/50 flex-1"></div>
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-tertiary/35 flex-1"></div>
+        <div class="bar bg-tertiary/25 flex-1"></div>
+        <div class="bar bg-tertiary/30 flex-1"></div>
+        <div class="bar bg-tertiary/35 flex-1"></div>
+        <div class="bar bg-tertiary/45 flex-1"></div>
+      </div>
+      <div class="mt-2 flex justify-between text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/70">
+        <span>30d ago</span><span>15d</span><span>Today</span>
+      </div>
+    </article>
+  </section>
+
+  <!-- Main content: Bot Fleet + Terminal -->
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Bot Fleet -->
+    <div class="lg:col-span-2 space-y-4">
+      <div class="flex items-center justify-between px-1">
+        <h3 class="font-headline text-xl font-extrabold flex items-center gap-2 text-on-surface">
+          <span class="material-symbols-outlined text-primary">smart_toy</span>
+          Active Bot Fleet
+          <span class="text-on-surface-variant font-normal text-sm ml-1">· 4</span>
+        </h3>
+        <div class="flex gap-2">
+          <button class="px-3 py-1.5 rounded-md bg-surface-container text-[11px] font-bold text-on-surface-variant hover:text-on-surface tone-lift">
+            <span class="material-symbols-outlined text-[14px] align-middle">filter_list</span>
+            Filter
+          </button>
+          <button class="text-xs font-bold text-primary hover:underline underline-offset-4 px-2">View All Fleet →</button>
+        </div>
+      </div>
+
+      <!-- Bot: Aegis Guardian -->
+      <article class="tone-lift group bg-surface-container p-5 rounded-2xl flex items-center gap-5">
+        <div class="relative w-12 h-12 rounded-xl bg-surface-container-highest flex items-center justify-center text-primary shrink-0">
+          <span class="material-symbols-outlined text-2xl">shield_person</span>
+          <span class="absolute -top-1 -right-1 w-3 h-3">
+            <span class="pulsar absolute inset-0 rounded-full bg-tertiary"></span>
+            <span class="absolute inset-0 rounded-full bg-tertiary glow-tertiary"></span>
+          </span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <h4 class="font-headline font-extrabold text-on-surface truncate">Aegis Guardian</h4>
+            <span class="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-primary/10 text-primary">v3.1</span>
+          </div>
+          <p class="text-xs text-on-surface-variant">Security &amp; Spam Mitigation Module</p>
+        </div>
+        <div class="hidden md:block px-4">
+          <p class="text-[9px] text-on-surface-variant font-bold uppercase tracking-widest">Status</p>
+          <p class="text-xs text-tertiary font-bold flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-tertiary glow-tertiary"></span>Operational
+          </p>
+        </div>
+        <div class="hidden md:block px-4">
+          <p class="text-[9px] text-on-surface-variant font-bold uppercase tracking-widest">Uptime</p>
+          <p class="text-xs text-on-surface font-mono">12d 4h 22m</p>
+        </div>
+        <div class="hidden lg:block px-4">
+          <p class="text-[9px] text-on-surface-variant font-bold uppercase tracking-widest">Load</p>
+          <div class="mt-1 h-1 w-20 rounded-full bg-surface-container-highest overflow-hidden">
+            <div class="h-full w-[34%] bg-primary glow-primary"></div>
+          </div>
+        </div>
+        <div class="flex gap-1">
+          <button title="Analytics" class="p-2 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-highest transition-colors">
+            <span class="material-symbols-outlined">analytics</span>
+          </button>
+          <button title="Stop" class="p-2 rounded-lg text-on-surface-variant hover:text-error hover:bg-surface-container-highest transition-colors">
+            <span class="material-symbols-outlined">stop_circle</span>
+          </button>
+        </div>
+      </article>
+
+      <!-- Bot: Store Manager -->
+      <article class="tone-lift group bg-surface-container p-5 rounded-2xl flex items-center gap-5">
+        <div class="relative w-12 h-12 rounded-xl bg-surface-container-highest flex items-center justify-center text-primary shrink-0">
+          <span class="material-symbols-outlined text-2xl">shopping_cart</span>
+          <span class="absolute -top-1 -right-1 w-3 h-3">
+            <span class="pulsar absolute inset-0 rounded-full bg-tertiary"></span>
+            <span class="absolute inset-0 rounded-full bg-tertiary glow-tertiary"></span>
+          </span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <h4 class="font-headline font-extrabold text-on-surface truncate">Store Manager</h4>
+            <span class="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-primary/10 text-primary">v2.7</span>
+          </div>
+          <p class="text-xs text-on-surface-variant">E-commerce Bridge &amp; Inventory</p>
+        </div>
+        <div class="hidden md:block px-4">
+          <p class="text-[9px] text-on-surface-variant font-bold uppercase tracking-widest">Status</p>
+          <p class="text-xs text-tertiary font-bold flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-tertiary glow-tertiary"></span>Operational
+          </p>
+        </div>
+        <div class="hidden md:block px-4">
+          <p class="text-[9px] text-on-surface-variant font-bold uppercase tracking-widest">Uptime</p>
+          <p class="text-xs text-on-surface font-mono">4d 18h 12m</p>
+        </div>
+        <div class="hidden lg:block px-4">
+          <p class="text-[9px] text-on-surface-variant font-bold uppercase tracking-widest">Load</p>
+          <div class="mt-1 h-1 w-20 rounded-full bg-surface-container-highest overflow-hidden">
+            <div class="h-full w-[68%] bg-primary glow-primary"></div>
+          </div>
+        </div>
+        <div class="flex gap-1">
+          <button class="p-2 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-highest transition-colors">
+            <span class="material-symbols-outlined">analytics</span>
+          </button>
+          <button class="p-2 rounded-lg text-on-surface-variant hover:text-error hover:bg-surface-container-highest transition-colors">
+            <span class="material-symbols-outlined">stop_circle</span>
+          </button>
+        </div>
+      </article>
+
+      <!-- Bot: Market Pulse — standby -->
+      <article class="tone-lift group bg-surface-container/70 p-5 rounded-2xl flex items-center gap-5">
+        <div class="relative w-12 h-12 rounded-xl bg-surface-container-highest flex items-center justify-center text-on-surface-variant shrink-0">
+          <span class="material-symbols-outlined text-2xl">monitoring</span>
+          <span class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-error glow-error"></span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <h4 class="font-headline font-extrabold text-on-surface truncate">Market Pulse</h4>
+            <span class="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-error/10 text-error">v1.4</span>
+          </div>
+          <p class="text-xs text-on-surface-variant">Live Crypto Tracking &amp; Alerts</p>
+        </div>
+        <div class="hidden md:block px-4">
+          <p class="text-[9px] text-on-surface-variant font-bold uppercase tracking-widest">Status</p>
+          <p class="text-xs text-error font-bold flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-error glow-error"></span>Standby
+          </p>
+        </div>
+        <div class="hidden md:block px-4">
+          <p class="text-[9px] text-on-surface-variant font-bold uppercase tracking-widest">Last Active</p>
+          <p class="text-xs text-on-surface font-mono">2h ago</p>
+        </div>
+        <div class="hidden lg:block px-4">
+          <p class="text-[9px] text-on-surface-variant font-bold uppercase tracking-widest">Load</p>
+          <div class="mt-1 h-1 w-20 rounded-full bg-surface-container-highest overflow-hidden">
+            <div class="h-full w-[4%] bg-error"></div>
+          </div>
+        </div>
+        <div class="flex gap-1">
+          <button class="p-2 rounded-lg text-on-surface-variant hover:text-tertiary hover:bg-surface-container-highest transition-colors">
+            <span class="material-symbols-outlined">play_circle</span>
+          </button>
+          <button class="p-2 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-highest transition-colors">
+            <span class="material-symbols-outlined">settings</span>
+          </button>
+        </div>
+      </article>
+
+      <!-- Bot: News Wire -->
+      <article class="tone-lift group bg-surface-container p-5 rounded-2xl flex items-center gap-5">
+        <div class="relative w-12 h-12 rounded-xl bg-surface-container-highest flex items-center justify-center text-primary shrink-0">
+          <span class="material-symbols-outlined text-2xl">newspaper</span>
+          <span class="absolute -top-1 -right-1 w-3 h-3">
+            <span class="pulsar absolute inset-0 rounded-full bg-tertiary"></span>
+            <span class="absolute inset-0 rounded-full bg-tertiary glow-tertiary"></span>
+          </span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <h4 class="font-headline font-extrabold text-on-surface truncate">News Wire</h4>
+            <span class="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-primary/10 text-primary">v4.0</span>
+          </div>
+          <p class="text-xs text-on-surface-variant">RSS to Channel Automation</p>
+        </div>
+        <div class="hidden md:block px-4">
+          <p class="text-[9px] text-on-surface-variant font-bold uppercase tracking-widest">Status</p>
+          <p class="text-xs text-tertiary font-bold flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-tertiary glow-tertiary"></span>Operational
+          </p>
+        </div>
+        <div class="hidden md:block px-4">
+          <p class="text-[9px] text-on-surface-variant font-bold uppercase tracking-widest">Uptime</p>
+          <p class="text-xs text-on-surface font-mono">32d 11h 05m</p>
+        </div>
+        <div class="hidden lg:block px-4">
+          <p class="text-[9px] text-on-surface-variant font-bold uppercase tracking-widest">Load</p>
+          <div class="mt-1 h-1 w-20 rounded-full bg-surface-container-highest overflow-hidden">
+            <div class="h-full w-[52%] bg-primary glow-primary"></div>
+          </div>
+        </div>
+        <div class="flex gap-1">
+          <button class="p-2 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container-highest transition-colors">
+            <span class="material-symbols-outlined">analytics</span>
+          </button>
+          <button class="p-2 rounded-lg text-on-surface-variant hover:text-error hover:bg-surface-container-highest transition-colors">
+            <span class="material-symbols-outlined">stop_circle</span>
+          </button>
+        </div>
+      </article>
+    </div>
+
+    <!-- Terminal -->
+    <div class="lg:col-span-1">
+      <div class="flex items-center justify-between px-1 mb-4">
+        <h3 class="font-headline text-xl font-extrabold flex items-center gap-2 text-on-surface">
+          <span class="material-symbols-outlined text-primary">developer_mode_tv</span>
+          System Logs
+        </h3>
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-error/70"></span>
+          <span class="w-2 h-2 rounded-full bg-warning/70"></span>
+          <span class="w-2 h-2 rounded-full bg-tertiary glow-tertiary"></span>
+        </div>
+      </div>
+
+      <div class="bg-surface-container-lowest rounded-2xl p-4 font-mono text-[11px] leading-relaxed h-[600px] flex flex-col">
+        <!-- Tabs (tonal, no borders) -->
+        <div class="flex gap-1 mb-3 text-[10px] font-bold uppercase tracking-widest">
+          <button class="px-2.5 py-1 rounded bg-surface-container-high text-primary">Live</button>
+          <button class="px-2.5 py-1 rounded text-on-surface-variant hover:bg-surface-container">Errors</button>
+          <button class="px-2.5 py-1 rounded text-on-surface-variant hover:bg-surface-container">Auth</button>
+        </div>
+
+        <div class="terminal-scroll flex-1 overflow-y-auto space-y-1 pr-2">
+          <div class="flex gap-2"><span class="text-outline-variant">[14:22:01]</span><span class="text-tertiary">SYSTEM</span><span class="text-on-surface-variant">Kernel initialized. High-priority pool ready.</span></div>
+          <div class="flex gap-2"><span class="text-outline-variant">[14:22:04]</span><span class="text-primary">INFO</span><span class="text-on-surface-variant">Aegis Guardian: Polling Telegram API @ <span class="text-primary">100ms</span> intervals.</span></div>
+          <div class="flex gap-2"><span class="text-outline-variant">[14:22:15]</span><span class="text-primary">INFO</span><span class="text-on-surface-variant">Webhook <span class="text-primary">'store_bridge_01'</span> verified SSL handshake.</span></div>
+          <div class="flex gap-2"><span class="text-outline-variant">[14:23:44]</span><span class="text-error">ERROR</span><span class="text-on-surface-variant">Market Pulse: WebSocket timeout. Retrying in <span class="text-error">5s</span>…</span></div>
+          <div class="flex gap-2"><span class="text-outline-variant">[14:23:49]</span><span class="text-primary">INFO</span><span class="text-on-surface-variant">Market Pulse: WebSocket reconnected. Stream <span class="text-tertiary">active</span>.</span></div>
+          <div class="flex gap-2"><span class="text-outline-variant">[14:25:02]</span><span class="text-primary">INFO</span><span class="text-on-surface-variant">Bulk dispatch: <span class="text-primary">4,220</span> items sent via News Wire.</span></div>
+          <div class="flex gap-2"><span class="text-outline-variant">[14:28:11]</span><span class="text-tertiary">AUTH</span><span class="text-on-surface-variant">Session <span class="text-primary">'Admin_User'</span> renewed from <span class="text-primary">192.168.1.1</span>.</span></div>
+          <div class="flex gap-2"><span class="text-outline-variant">[14:30:45]</span><span class="text-primary">INFO</span><span class="text-on-surface-variant">Resource monitor: CPU <span class="text-primary">12%</span>, MEM <span class="text-primary">1.2GB</span>/<span class="text-on-surface-variant">4GB</span>.</span></div>
+          <div class="flex gap-2"><span class="text-outline-variant">[14:32:19]</span><span class="text-primary">INFO</span><span class="text-on-surface-variant">Bot <span class="text-primary">'Auto-Responder'</span> queued for deployment.</span></div>
+          <div class="flex gap-2"><span class="text-outline-variant">[14:33:02]</span><span class="text-warning">WARN</span><span class="text-on-surface-variant">Rate limit approaching: <span class="text-warning">89%</span> of daily quota.</span></div>
+          <div class="flex gap-2"><span class="text-outline-variant">[14:34:15]</span><span class="text-tertiary">AUTH</span><span class="text-on-surface-variant">2FA challenge passed for <span class="text-primary">'ops_robot'</span>.</span></div>
+          <div class="flex gap-2"><span class="text-outline-variant">[14:35:00]</span><span class="text-on-surface-variant blink-caret">scanning…</span></div>
+        </div>
+
+        <!-- Prompt (tonal divider via background shift to surface-container) -->
+        <div class="mt-4 rounded-lg bg-surface-container px-3 py-2 flex items-center gap-2">
+          <span class="text-primary font-bold">❯</span>
+          <input type="text" placeholder="execute system command…" class="flex-1 bg-transparent border-0 focus:ring-0 p-0 text-[12px] text-primary placeholder:text-on-surface-variant/60"/>
+          <span class="text-[10px] text-on-surface-variant/60 font-bold tracking-widest">↵</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer (no hard border — subtle surface transition) -->
+  <footer class="mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-on-surface-variant text-[10px] font-bold tracking-[0.2em] uppercase">
+    <div class="flex items-center gap-6">
+      <a href="#" class="hover:text-primary transition-colors">Documentation</a>
+      <a href="#" class="hover:text-primary transition-colors">API Status</a>
+      <a href="#" class="hover:text-primary transition-colors">Global Settings</a>
+      <a href="#" class="hover:text-primary transition-colors">Changelog</a>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="w-1.5 h-1.5 rounded-full bg-tertiary glow-tertiary"></span>
+      <span>All Systems Nominal · <span class="text-on-surface">v2.4.17</span></span>
+    </div>
+  </footer>
+
+</main>
+
+</body>
+</html>

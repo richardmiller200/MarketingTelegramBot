@@ -8,6 +8,7 @@
     "template": "node scripts/make-template.mjs"
   },
   "dependencies": {
+    "better-sqlite3": "^12.9.0",
     "dotenv": "^16.4.5",
     "node-telegram-bot-api": "^0.66.0",
     "xlsx": "^0.18.5"

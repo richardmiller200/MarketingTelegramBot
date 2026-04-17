@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kinetic Command — Fleet Command</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" />
+  <style>
+/* =========================================================================
+   Kinetic Command — Fleet Command Panel
+   "The Neon Observatory" design system
+   Styles the shell (panel.html) plus every class hook rendered inline by
+   bot.js's renderPanelPage(): .panel, .dashboard-hero, .stat .k/.v,
+   .dashboard-grid, .mini-list / .mini-item, .pill, .actions, form.main,
+   .row, .check, .submit, .primary, .muted, .note, .text-screen,
+   .logs-box, .log-line, .log-time.
+   ========================================================================= */
+
+:root {
+  /* Surface hierarchy */
+  --surface:                  #0c0e11;
+  --surface-container-lowest: #000000;
+  --surface-container-low:    #111417;
+  --surface-container:        #171a1d;
+  --surface-container-high:   #1d2024;
+  --surface-container-highest:#23262a;
+
+  /* Key + accent */
+  --primary:          #81ecff;
+  --primary-dim:      #00d4ec;
+  --on-primary-fixed: #003840;
+  --tertiary:         #8eff71;
+  --tertiary-dim:     #2be800;
+  --error:            #ff716c;
+  --error-dim:        #d7383b;
+  --warning:          #ffb84d;
+
+  /* Foreground */
+  --on-surface:         #f9f9fd;
+  --on-surface-variant: #aaabaf;
+  --outline:            #747579;
+  --outline-variant:    #46484b;
+
+  /* Layout */
+  --sidebar-w: 256px;
+  --topbar-h: 64px;
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body { background: var(--surface); }
+
+body {
+  margin: 0;
+  font-family: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--on-surface);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  vertical-align: middle;
+}
+
+/* ===== Ambient backdrop (radial bloom, no flat black) ===== */
+.ambient {
+  position: fixed; inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1100px 550px at 8% -10%,  rgba(0,212,236,0.10), transparent 60%),
+    radial-gradient(900px  500px at 115% 8%,  rgba(142,255,113,0.06), transparent 55%),
+    radial-gradient(800px  800px at 50% 120%, rgba(129,236,255,0.05), transparent 60%);
+}
+
+/* ===================================================================
+   SIDEBAR
+   =================================================================== */
+.sidebar {
+  position: fixed;
+  left: 0; top: 0;
+  height: 100vh;
+  width: var(--sidebar-w);
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  z-index: 50;
+
+  /* Glassmorphism per spec */
+  background: rgba(29, 32, 36, 0.72);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+.brand-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 6px 18px;
+}
+.brand-icon {
+  width: 40px; height: 40px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--on-primary-fixed);
+  background: linear-gradient(135deg, var(--primary), var(--primary-dim));
+  box-shadow: 0 0 20px rgba(129, 236, 255, 0.25);
+}
+.brand-icon .material-symbols-outlined { font-size: 22px; }
+.brand-block h1 {
+  margin: 0;
+  font-family: "Manrope", sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--on-surface);
+  letter-spacing: -0.01em;
+}
+.brand-block p {
+  margin: 2px 0 0;
+  font-size: 9px;
+  color: rgba(129, 236, 255, 0.7);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.menu-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--on-surface-variant);
+  transition: background-color .2s ease, color .2s ease;
+}
+.menu-link .material-symbols-outlined { font-size: 20px; }
+.menu-link:hover {
+  color: var(--on-surface);
+  background: var(--surface-container-low);
+}
+.menu-link.active {
+  color: var(--on-surface);
+  background: var(--surface-container-highest);
+}
+.menu-link.active::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 10px; bottom: 10px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--primary);
+  filter: drop-shadow(0 0 6px rgba(129, 236, 255, 0.6));
+}
+.menu-link.active .material-symbols-outlined { color: var(--primary); }
+
+/* "Deploy New Bot" gets the gradient treatment */
+.menu-cta {
+  margin-top: 6px;
+  justify-content: center;
+  color: var(--on-primary-fixed);
+  background: linear-gradient(135deg, var(--primary), var(--primary-dim));
+  font-family: "Manrope", sans-serif;
+  font-weight: 800;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+.menu-cta:hover { filter: brightness(1.08); color: var(--on-primary-fixed); background: linear-gradient(135deg, var(--primary), var(--primary-dim)); }
+.menu-cta.active { background: linear-gradient(135deg, var(--primary), var(--primary-dim)); color: var(--on-primary-fixed); }
+.menu-cta.active::before { display: none; }
+.menu-cta .material-symbols-outlined { font-size: 18px; color: inherit; }
+
+.logout-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--on-surface-variant);
+  transition: background-color .2s, color .2s;
+}
+.logout-nav .material-symbols-outlined { font-size: 20px; }
+.logout-nav:hover { color: var(--error); background: rgba(255, 113, 108, 0.08); }
+
+/* ===================================================================
+   TOPBAR
+   =================================================================== */
+.topbar {
+  position: fixed;
+  left: var(--sidebar-w);
+  right: 0;
+  top: 0;
+  height: var(--topbar-h);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  z-index: 40;
+
+  background: rgba(12, 14, 17, 0.78);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+.search-wrap {
+  position: relative;
+  flex: 1;
+  max-width: 520px;
+}
+.search-wrap .search-icon {
+  position: absolute;
+  left: 12px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--on-surface-variant);
+  font-size: 18px;
+  pointer-events: none;
+}
+.search-wrap input {
+  width: 100%;
+  height: 38px;
+  padding: 0 48px 0 36px;
+  font-size: 13px;
+  color: var(--on-surface);
+  background: var(--surface-container-lowest);
+  border: 1px solid rgba(70, 72, 75, 0.15);
+  border-radius: 8px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color .2s, box-shadow .2s;
+}
+.search-wrap input::placeholder { color: rgba(170, 171, 175, 0.7); }
+.search-wrap input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(129, 236, 255, 0.15);
+}
+.search-wrap kbd {
+  position: absolute;
+  right: 10px; top: 50%;
+  transform: translateY(-50%);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10px;
+  color: rgba(170, 171, 175, 0.7);
+  border: 1px solid rgba(70, 72, 75, 0.35);
+  border-radius: 4px;
+  padding: 2px 5px;
+  background: transparent;
+}
+
+.top-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+.top-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  font-family: "Inter", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--tertiary);
+  background: var(--surface-container-high);
+  border-radius: 6px;
+}
+.top-pill .material-symbols-outlined { font-size: 13px; }
+.top-pill.ok { color: var(--primary); }
+
+.dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.dot-tertiary { background: var(--tertiary); filter: drop-shadow(0 0 6px rgba(142,255,113,0.55)); }
+
+/* ===================================================================
+   CONTENT AREA (server renders inside .content)
+   =================================================================== */
+.content {
+  position: relative;
+  z-index: 1;
+  margin-left: var(--sidebar-w);
+  padding: calc(var(--topbar-h) + 24px) 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ---------- Dashboard hero (view=dashboard) ---------- */
+.dashboard-hero {
+  padding: 8px 4px 0;
+}
+.hero-title {
+  margin: 0;
+  font-family: "Manrope", sans-serif;
+  font-weight: 900;
+  font-size: clamp(2rem, 3.6vw, 3.2rem);
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  color: var(--on-surface);
+  background: linear-gradient(90deg, var(--primary) 0%, var(--tertiary) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.hero-sub {
+  margin: 10px 0 0;
+  max-width: 620px;
+  color: var(--on-surface-variant);
+  font-size: 14px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+.stat {
+  position: relative;
+  overflow: hidden;
+  padding: 20px;
+  border-radius: 16px;
+  background: var(--surface-container-low);
+  transition: background-color .25s ease, transform .25s ease;
+}
+.stat:hover { background: var(--surface-container); transform: translateY(-1px); }
+.stat .k {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+  margin-bottom: 14px;
+}
+.stat .v {
+  display: block;
+  font-family: "Manrope", sans-serif;
+  font-weight: 900;
+  font-size: 40px;
+  line-height: 1;
+  color: var(--on-surface);
+  letter-spacing: -0.02em;
+}
+.stat::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary), var(--primary-dim) 60%, transparent);
+  opacity: 0.6;
+}
+
+/* ---------- Two-column dashboard grid ---------- */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 0.6fr;
+  gap: 20px;
+}
+
+/* ---------- .panel (card shell for every view) ---------- */
+.panel {
+  background: var(--surface-container);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: background-color .25s ease;
+}
+.panel:hover { background: var(--surface-container-high); }
+.panel h2 {
+  margin: 0;
+  padding: 18px 22px;
+  font-family: "Manrope", sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--on-surface);
+  letter-spacing: -0.01em;
+  background: var(--surface-container-high); /* tonal divider, not a border */
+}
+
+/* ---------- Tables (bot list, top bots) ---------- */
+.panel table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.panel th,
+.panel td {
+  padding: 14px 22px;
+  font-size: 13px;
+  text-align: left;
+  vertical-align: middle;
+}
+.panel th {
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.panel td {
+  color: var(--on-surface);
+  background: var(--surface-container);
+}
+.panel tbody tr { transition: background-color .2s ease; }
+.panel tbody tr:hover td { background: var(--surface-container-high); }
+.panel tbody tr + tr td { box-shadow: inset 0 1px 0 rgba(70,72,75,0.10); }
+
+/* ---------- Status pills ---------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.pill::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pill.ok {
+  color: var(--tertiary);
+  background: rgba(142, 255, 113, 0.10);
+  filter: drop-shadow(0 0 4px rgba(142,255,113,0.25));
+}
+.pill.warn {
+  color: var(--warning);
+  background: rgba(255, 184, 77, 0.10);
+}
+
+/* ---------- Actions column ---------- */
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.actions a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  transition: background-color .2s, color .2s;
+}
+.actions a:hover { background: rgba(129, 236, 255, 0.08); }
+.actions form { display: inline; margin: 0; }
+.actions button {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--error);
+  background: rgba(255, 113, 108, 0.08);
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background-color .2s;
+}
+.actions button:hover { background: rgba(255, 113, 108, 0.16); }
+
+/* ---------- Mini list (Quick Insights on dashboard) ---------- */
+.mini-list {
+  list-style: none;
+  margin: 0;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mini-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface-container-high);
+  transition: background-color .2s ease;
+}
+.mini-item:hover { background: var(--surface-container-highest); }
+.mini-item .name {
+  font-family: "Manrope", sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--on-surface);
+}
+.mini-item .sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--on-surface-variant);
+}
+.mini-item .num {
+  font-family: "Manrope", sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--primary);
+  filter: drop-shadow(0 0 8px rgba(129,236,255,0.35));
+}
+
+/* ---------- Forms (view=add) ---------- */
+form.main {
+  padding: 20px 22px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+form.main .row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+form.main label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+form.main input,
+form.main textarea {
+  width: 100%;
+  padding: 12px 14px;
+  font-family: "Inter", sans-serif;
+  font-size: 13px;
+  color: var(--on-surface);
+  background: var(--surface-container-lowest);
+  border: 1px solid rgba(70, 72, 75, 0.15);
+  border-radius: 10px;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+  text-transform: none;
+  letter-spacing: normal;
+}
+form.main input::placeholder,
+form.main textarea::placeholder { color: rgba(170, 171, 175, 0.6); }
+form.main input:focus,
+form.main textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(129, 236, 255, 0.15);
+}
+form.main textarea { min-height: 90px; resize: vertical; font-family: "Inter", sans-serif; }
+
+form.main .check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--on-surface);
+  background: var(--surface-container-lowest);
+  border-radius: 10px;
+}
+form.main .check input[type="checkbox"] {
+  width: 18px; height: 18px;
+  accent-color: var(--primary);
+  padding: 0;
+  border-radius: 4px;
+}
+
+form.main .submit {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 4px;
+}
+form.main .submit .primary,
+form.main .submit button.primary {
+  font-family: "Manrope", sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-primary-fixed);
+  background: linear-gradient(135deg, var(--primary), var(--primary-dim));
+  border: 0;
+  border-radius: 10px;
+  padding: 12px 22px;
+  cursor: pointer;
+  transition: filter .15s, transform .1s;
+}
+form.main .submit .primary:hover { filter: brightness(1.08); }
+form.main .submit .primary:active { transform: scale(0.98); }
+form.main .submit .muted {
+  font-family: "Manrope", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+  background: var(--surface-container-highest);
+  border-radius: 10px;
+  padding: 12px 18px;
+  text-decoration: none;
+  transition: background-color .2s, color .2s;
+}
+form.main .submit .muted:hover { color: var(--on-surface); background: var(--surface-container-high); }
+
+/* ---------- Config / Analytics (text-screen) ---------- */
+.text-screen {
+  padding: 20px 24px 24px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--on-surface-variant);
+}
+.text-screen p { margin: 0 0 6px; }
+.text-screen strong {
+  color: var(--on-surface);
+  font-family: "Manrope", sans-serif;
+  font-weight: 700;
+}
+
+/* ---------- Logs view ---------- */
+.logs-box {
+  padding: 20px 22px;
+  max-height: 560px;
+  overflow-y: auto;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  background: var(--surface-container-lowest);
+}
+.logs-box::-webkit-scrollbar { width: 6px; }
+.logs-box::-webkit-scrollbar-track { background: transparent; }
+.logs-box::-webkit-scrollbar-thumb { background: var(--surface-container-highest); border-radius: 999px; }
+.log-line {
+  display: flex;
+  gap: 10px;
+  color: var(--on-surface-variant);
+  margin-bottom: 4px;
+}
+.log-time {
+  color: var(--outline-variant);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.log-line strong {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+.log-line strong:nth-child(2) { /* heuristic color by level */ }
+/* When bot.js renders "ERROR" or "INFO" in <strong>, color via CSS attribute selectors
+   wouldn't work on text — so use descendant rule instead based on presence of word */
+/* Fallback: make INFO primary, ERROR error, via class-less matching below. */
+
+/* Color level tokens by scanning the node — we approximate with :has() where supported
+   and otherwise leave strong at the emphasis color. */
+.log-line strong { color: var(--primary); }
+.log-line:has(strong:only-of-type) strong { color: var(--primary); }
+/* The server only outputs "INFO" when healthy and the raw error message when not;
+   we can target by the :has() trick above. For finer control, we use the fact
+   that the level text is always the first <strong>: */
+
+/* ---------- Notice banner () ---------- */
+.panel .note {
+  padding: 14px 22px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--tertiary);
+  background: rgba(142, 255, 113, 0.08);
+}
+
+/* ---------- Error block (rarely rendered on panel.html) ---------- */
+.err {
+  margin-top: 10px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--error);
+  background: rgba(255, 113, 108, 0.08);
+  border-radius: 8px;
+}
+
+/* ===================================================================
+   RESPONSIVE
+   =================================================================== */
+@media (max-width: 1024px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 860px) {
+  :root { --sidebar-w: 0px; }
+  .sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px;
+  }
+  .brand-block { padding: 0; }
+  .menu {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex: 1;
+  }
+  .menu-link { padding: 8px 10px; font-size: 13px; }
+  .menu-link span:not(.material-symbols-outlined) { display: none; }
+  .menu-cta span:not(.material-symbols-outlined) { display: inline; }
+  .logout-nav span:not(.material-symbols-outlined) { display: none; }
+
+  .topbar {
+    position: static;
+    left: 0;
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  .search-wrap { max-width: none; }
+
+  .content {
+    margin-left: 0;
+    padding: 16px 14px 24px;
+  }
+  form.main .row { grid-template-columns: 1fr; }
+  .panel th, .panel td { padding: 12px 14px; }
+}
+
+</style>
+</head>
+<body>
+
+  <!-- Ambient backdrop -->
+  <div class="ambient" aria-hidden="true"></div>
+
+  <!-- ======= SIDEBAR ======= -->
+  <aside class="sidebar">
+    <div class="brand-block">
+      <div class="brand-icon">
+        <span class="material-symbols-outlined">rocket_launch</span>
+      </div>
+      <div>
+        <h1>Kinetic Command</h1>
+        <p>V2.4 · Active</p>
+      </div>
+    </div>
+
+    <nav class="menu">
+      <a class="menu-link " href="/panel?view=dashboard">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span>Dashboard</span>
+      </a>
+      <a class="menu-link " href="/panel?view=bots">
+        <span class="material-symbols-outlined">precision_manufacturing</span>
+        <span>Bot Instances</span>
+      </a>
+      <a class="menu-link " href="/panel?view=logs">
+        <span class="material-symbols-outlined">terminal</span>
+        <span>Global Logs</span>
+      </a>
+      <a class="menu-link " href="/panel?view=config">
+        <span class="material-symbols-outlined">api</span>
+        <span>API Config</span>
+      </a>
+      <a class="menu-link " href="/panel?view=analytics">
+        <span class="material-symbols-outlined">group</span>
+        <span>User Analytics</span>
+      </a>
+      <a class="menu-link menu-cta active" href="/panel?view=add">
+        <span class="material-symbols-outlined">add_circle</span>
+        <span>Deploy New Bot</span>
+      </a>
+    </nav>
+
+    <a class="logout-nav" href="/logout">
+      <span class="material-symbols-outlined">logout</span>
+      <span>Logout</span>
+    </a>
+  </aside>
+
+  <!-- ======= TOPBAR ======= -->
+  <header class="topbar">
+    <div class="search-wrap">
+      <span class="material-symbols-outlined search-icon">search</span>
+      <input type="text" placeholder="Search bots, commands, or logs…" />
+      <kbd>⌘K</kbd>
+    </div>
+    <div class="top-right">
+      <span class="top-pill">
+        <span class="dot dot-tertiary"></span>
+        SYSTEM STABLE
+      </span>
+      <span class="top-pill ok">
+        <span class="material-symbols-outlined">bolt</span>
+        LATENCY 24ms
+      </span>
+    </div>
+  </header>
+
+  <!-- ======= MAIN CONTENT ======= -->
+  <main class="content">
+    <div class="panel"><h2>Edit Bot</h2>
+<form class="main" method="POST" action="/panel/save">
+<input type="hidden" name="id" value="1"/>
+<div class="row"><label>Name<input name="name" required value="Aegis Guardian"/></label><label>Token<input name="token" required value="***"/></label></div>
+<div class="row"><label>Admin IDs (comma)<input name="admin_ids" value="111222333"/></label><label>Group Chat ID<input name="group_chat_id" value=""/></label></div>
+<label>Welcome Message<textarea name="welcome_message">Welcome aboard!</textarea></label>
+<div class="row"><label>Welcome Image URL<input name="welcome_image" value=""/></label><label>Channel URL<input name="channel_url" value="https://t.me/aegis"/></label></div>
+<label>Random Channel URLs (comma)<input name="random_channel_urls" value=""/></label>
+<div class="row"><label>Button 1 Text<input name="button_1_text" value=""/></label><label>Button 1 URL<input name="button_1_url" value=""/></label></div>
+<div class="row"><label>Button 2 Text<input name="button_2_text" value=""/></label><label>Button 2 URL<input name="button_2_url" value=""/></label></div>
+<div class="row"><label>Button 3 Text<input name="button_3_text" value=""/></label><label>Button 3 URL<input name="button_3_url" value=""/></label></div>
+<div class="row"><label>Button 4 Text<input name="button_4_text" value=""/></label><label>Button 4 URL<input name="button_4_url" value=""/></label></div>
+<div class="row"><label>Button 5 Text<input name="button_5_text" value=""/></label><label>Button 5 URL<input name="button_5_url" value=""/></label></div>
+<label class="check"><input type="checkbox" name="enabled" checked/> Enabled</label>
+<div class="submit"><button class="primary" type="submit">Save Bot</button><a class="muted" href="/panel?view=add">Reset</a></div></form></div>
+    {{notice_block}}
+  </main>
+
+</body>
+</html>

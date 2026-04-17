@@ -1,8 +1,11 @@
 import "dotenv/config";
 import fs from "fs";
+import http from "http";
 import path from "path";
+import crypto from "crypto";
 import TelegramBot from "node-telegram-bot-api";
 import XLSX from "xlsx";
+import Database from "better-sqlite3";
 
 const ROOT = process.cwd();
 
@@ -21,6 +24,12 @@ const DEFAULT_DAILY_SEND_TIMES = [
   { key: "afternoon", hour: 16, minute: 30 },
   { key: "night", hour: 20, minute: 30 },
 ];
+const PANEL_PORT = Number(process.env.PANEL_PORT ?? "3000");
+const PANEL_HOST = String(process.env.PANEL_HOST ?? "127.0.0.1").trim();
+const PANEL_USERNAME = String(process.env.PANEL_USERNAME ?? "admin").trim();
+const PANEL_PASSWORD = String(process.env.PANEL_PASSWORD ?? "").trim();
+const DB_FILE = path.join(ROOT, "data", "config.sqlite");
+const TEMPLATES_DIR = path.join(ROOT, "templates");
 
 function parseAdminIds(raw) {
   return String(raw ?? "")
@@ -182,6 +191,9 @@ function applyGlobalAdminFallback(configs) {
 
 function loadBotsFromExcel(filePath) {
   if (!fs.existsSync(filePath)) return [];
+  try {
+    fs.chmodSync(filePath, 0o600);
+  } catch {}
   const wb = XLSX.readFile(filePath);
   const sheetName = wb.SheetNames[0];
   if (!sheetName) return [];
@@ -194,9 +206,37 @@ function loadBotsFromExcel(filePath) {
 }
 
 function loadBotsFromEnv() {
+  const multiRaw = String(
+    process.env.BOTS_JSON ?? process.env.BOTS_CONFIG_JSON ?? ""
+  ).trim();
+  if (multiRaw) {
+    try {
+      const parsed = JSON.parse(multiRaw);
+      if (!Array.isArray(parsed)) return [];
+      const configs = parsed
+        .map((row, i) => rowToConfig(row, i))
+        .filter(
+          (c) =>
+            c.enabled && c.token && c.token !== "PASTE_TOKEN_FROM_BOTFATHER"
+        );
+      return applyGlobalAdminFallback(configs);
+    } catch (err) {
+      console.error("Invalid BOTS_JSON/BOTS_CONFIG_JSON in .env:", err.message);
+      return [];
+    }
+  }
+
   const token = process.env.BOT_TOKEN?.trim();
   if (!token) return [];
   const adminIds = parseAdminIds(process.env.ADMIN_TELEGRAM_IDS ?? "");
+  const welcomeButtons = [];
+  for (let i = 1; i <= 5; i += 1) {
+    const text = String(process.env[`BUTTON_${i}_TEXT`] ?? "").trim();
+    const url = String(process.env[`BUTTON_${i}_URL`] ?? "").trim();
+    if (text && /^https?:\/\//i.test(url)) {
+      welcomeButtons.push({ text, url });
+    }
+  }
   const cfg = {
     name: "default",
     slug: "default",
@@ -208,7 +248,7 @@ function loadBotsFromEnv() {
     groupChatId: Number(process.env.GROUP_CHAT_ID ?? "") || null,
     channelUrl: String(process.env.CHANNEL_URL ?? "").trim(),
     randomChannelUrls: parseUrlList(process.env.RANDOM_CHANNEL_URLS ?? ""),
-    welcomeButtons: [],
+    welcomeButtons,
     isFirstAndheriBot: false,
   };
   return applyGlobalAdminFallback([cfg]);
@@ -230,25 +270,126 @@ function markFirstAndheriBot(configs) {
   });
 }
 
+function openConfigDb() {
+  const dir = path.dirname(DB_FILE);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const db = new Database(DB_FILE);
+  db.pragma("journal_mode = WAL");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      token TEXT NOT NULL,
+      admin_ids TEXT NOT NULL DEFAULT '',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      welcome_message TEXT NOT NULL DEFAULT '',
+      welcome_image TEXT NOT NULL DEFAULT '',
+      group_chat_id TEXT NOT NULL DEFAULT '',
+      channel_url TEXT NOT NULL DEFAULT '',
+      random_channel_urls TEXT NOT NULL DEFAULT '',
+      welcome_buttons TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+  return db;
+}
+
+function configToDbRow(cfg) {
+  return {
+    name: String(cfg.name ?? "").trim(),
+    token: String(cfg.token ?? "").trim(),
+    admin_ids: (cfg.adminIds ?? []).join(","),
+    enabled: cfg.enabled ? 1 : 0,
+    welcome_message: String(cfg.welcomeExtra ?? "").trim(),
+    welcome_image: String(cfg.welcomeImage ?? "").trim(),
+    group_chat_id: cfg.groupChatId ? String(cfg.groupChatId) : "",
+    channel_url: String(cfg.channelUrl ?? "").trim(),
+    random_channel_urls: (cfg.randomChannelUrls ?? []).join(","),
+    welcome_buttons: JSON.stringify(cfg.welcomeButtons ?? []),
+  };
+}
+
+function dbRowToConfig(row, index) {
+  let buttons = [];
+  try {
+    const parsed = JSON.parse(String(row.welcome_buttons ?? "[]"));
+    if (Array.isArray(parsed)) {
+      buttons = parsed
+        .map((b) => ({ text: String(b.text ?? "").trim(), url: String(b.url ?? "").trim() }))
+        .filter((b) => b.text && /^https?:\/\//i.test(b.url));
+    }
+  } catch {}
+
+  return {
+    name: String(row.name ?? "").trim() || `bot_${index + 1}`,
+    slug: slugify(String(row.name ?? ""), index),
+    token: String(row.token ?? "").trim(),
+    adminIds: parseAdminIds(row.admin_ids ?? ""),
+    enabled: Number(row.enabled) !== 0,
+    welcomeExtra: String(row.welcome_message ?? "").trim(),
+    welcomeImage: String(row.welcome_image ?? "").trim(),
+    groupChatId: Number(row.group_chat_id) || null,
+    channelUrl: String(row.channel_url ?? "").trim(),
+    randomChannelUrls: parseUrlList(row.random_channel_urls ?? ""),
+    welcomeButtons: buttons,
+    isFirstAndheriBot: false,
+  };
+}
+
+function seedSqliteIfEmpty(db, seedConfigs) {
+  const count = Number(db.prepare("SELECT COUNT(*) AS c FROM bots").get().c || 0);
+  if (count > 0 || seedConfigs.length === 0) return false;
+  const insert = db.prepare(`
+    INSERT INTO bots (
+      name, token, admin_ids, enabled, welcome_message, welcome_image,
+      group_chat_id, channel_url, random_channel_urls, welcome_buttons, created_at, updated_at
+    ) VALUES (
+      @name, @token, @admin_ids, @enabled, @welcome_message, @welcome_image,
+      @group_chat_id, @channel_url, @random_channel_urls, @welcome_buttons, @created_at, @updated_at
+    )
+  `);
+  const now = new Date().toISOString();
+  const txn = db.transaction((items) => {
+    for (const cfg of items) {
+      const row = configToDbRow(cfg);
+      insert.run({ ...row, created_at: now, updated_at: now });
+    }
+  });
+  txn(seedConfigs);
+  return true;
+}
+
+function loadBotsFromSqlite(db) {
+  const rows = db
+    .prepare("SELECT * FROM bots WHERE enabled = 1 ORDER BY id ASC")
+    .all();
+  return rows
+    .map((row, i) => dbRowToConfig(row, i))
+    .filter((c) => c.enabled && c.token && c.token !== "PASTE_TOKEN_FROM_BOTFATHER");
+}
+
 function resolveConfigs() {
   const excelPath = path.resolve(
     ROOT,
     process.env.BOTS_EXCEL_PATH || "bots.xlsx"
   );
-  const fromExcel = loadBotsFromExcel(excelPath);
-  if (fromExcel.length > 0) {
-    return { configs: markFirstAndheriBot(fromExcel), source: excelPath };
-  }
+  const db = openConfigDb();
 
   const fromEnv = loadBotsFromEnv();
-  if (fromEnv.length > 0) {
-    return { configs: markFirstAndheriBot(fromEnv), source: ".env" };
+  const fromExcel = loadBotsFromExcel(excelPath);
+  seedSqliteIfEmpty(db, fromEnv.length > 0 ? fromEnv : fromExcel);
+
+  const fromSqlite = loadBotsFromSqlite(db);
+  if (fromSqlite.length > 0) {
+    return { configs: markFirstAndheriBot(fromSqlite), source: "sqlite", db };
   }
 
   console.error(
     "No bots found. Either:\n" +
-      "  • Create bots.xlsx (run: npm run template) and add rows with bot_token + admin_ids, or\n" +
-      "  • Set BOT_TOKEN (and ADMIN_TELEGRAM_IDS) in .env for a single bot."
+      "  • Add bots in the admin panel, or\n" +
+      "  • Set BOTS_JSON/BOT_TOKEN in .env to auto-seed SQLite once, or\n" +
+      "  • Create bots.xlsx (run: npm run template) to auto-seed SQLite once."
   );
   process.exit(1);
 }
@@ -406,7 +547,7 @@ function resolveWelcomePhotoInput(raw) {
 
 const BROADCAST_CMD = /^\/broadcast(?:\s+([\s\S]+))?$/;
 
-function attachHandlers(bot, cfg, store, logPrefix) {
+function attachHandlers(bot, cfg, store, logPrefix, hooks = {}) {
   function welcomeReplyMarkup() {
     if (Array.isArray(cfg.welcomeButtons) && cfg.welcomeButtons.length > 0) {
       return {
@@ -778,6 +919,9 @@ function attachHandlers(bot, cfg, store, logPrefix) {
   );
 
   bot.on("polling_error", (err) => {
+    if (typeof hooks.onPollingError === "function") {
+      hooks.onPollingError(err);
+    }
     console.error(`${logPrefix} polling error:`, err.message);
   });
 }
@@ -786,15 +930,417 @@ function startBot(cfg) {
   const usersFile = path.join(ROOT, "data", cfg.slug, "users.json");
   const store = createUserStore(usersFile);
   const logPrefix = `[${cfg.name}]`;
+  const runtime = {
+    name: cfg.name,
+    slug: cfg.slug,
+    usersFile,
+    startedAt: new Date().toISOString(),
+    lastPollingError: null,
+    pollingErrorCount: 0,
+  };
 
   const bot = new TelegramBot(cfg.token, { polling: true });
-  attachHandlers(bot, cfg, store, logPrefix);
+  attachHandlers(bot, cfg, store, logPrefix, {
+    onPollingError(err) {
+      runtime.lastPollingError = String(err?.message ?? "Unknown error");
+      runtime.pollingErrorCount += 1;
+    },
+  });
   console.log(`${logPrefix} running — users file: data/${cfg.slug}/users.json`);
+  return { cfg, store, runtime };
 }
 
-const { configs, source } = resolveConfigs();
+function countMembers(usersFile) {
+  try {
+    if (!fs.existsSync(usersFile)) return 0;
+    const data = JSON.parse(fs.readFileSync(usersFile, "utf8"));
+    const ids = Array.isArray(data.chatIds) ? data.chatIds : [];
+    return [...new Set(ids.map(Number).filter((n) => !Number.isNaN(n)))].length;
+  } catch {
+    return 0;
+  }
+}
+
+function getStatusRows(instances) {
+  return instances.map(({ runtime }) => {
+    const members = countMembers(runtime.usersFile);
+    return {
+      name: runtime.name,
+      slug: runtime.slug,
+      members,
+      pollingErrorCount: runtime.pollingErrorCount,
+      lastPollingError: runtime.lastPollingError,
+      startedAt: runtime.startedAt,
+      healthy: runtime.pollingErrorCount === 0,
+    };
+  });
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function parseCookies(req) {
+  const raw = String(req.headers.cookie ?? "");
+  const cookies = {};
+  for (const item of raw.split(";")) {
+    const [k, ...rest] = item.trim().split("=");
+    if (!k) continue;
+    cookies[k] = decodeURIComponent(rest.join("="));
+  }
+  return cookies;
+}
+
+function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 1024 * 1024) {
+        reject(new Error("Body too large"));
+      }
+    });
+    req.on("end", () => resolve(body));
+    req.on("error", reject);
+  });
+}
+
+function parseButtonsFromForm(form) {
+  const buttons = [];
+  for (let i = 1; i <= 5; i += 1) {
+    const text = String(form.get(`button_${i}_text`) ?? "").trim();
+    const url = String(form.get(`button_${i}_url`) ?? "").trim();
+    if (text && /^https?:\/\//i.test(url)) {
+      buttons.push({ text, url });
+    }
+  }
+  return buttons;
+}
+
+function loadBotRows(db) {
+  return db.prepare("SELECT * FROM bots ORDER BY id ASC").all();
+}
+
+function readTemplateFile(name) {
+  return fs.readFileSync(path.join(TEMPLATES_DIR, name), "utf8");
+}
+
+function renderLoginPage(error = "") {
+  const tpl = readTemplateFile("login.html");
+  return tpl.replace(
+    "{{error_block}}",
+    error ? `<div class="err">${escapeHtml(error)}</div>` : ""
+  );
+}
+
+function renderPanelPage({
+  botRows,
+  statusRows,
+  editingId = 0,
+  notice = "",
+  view = "dashboard",
+}) {
+  const rowsBySlug = new Map(statusRows.map((r) => [r.slug, r]));
+  const totalBots = botRows.length;
+  const enabledBots = botRows.filter((b) => Number(b.enabled) !== 0).length;
+  const totalMembers = statusRows.reduce((sum, r) => sum + Number(r.members || 0), 0);
+  const healthyBots = statusRows.filter((r) => r.healthy).length;
+  const totalErrors = statusRows.reduce(
+    (sum, r) => sum + Number(r.pollingErrorCount || 0),
+    0
+  );
+  const topBots = [...statusRows]
+    .sort((a, b) => Number(b.members) - Number(a.members))
+    .slice(0, 5);
+  const tableRows = botRows
+    .map((b, idx) => {
+      const slug = slugify(String(b.name ?? ""), idx);
+      const live = rowsBySlug.get(slug);
+      const members = live ? live.members : 0;
+      const health = live && live.healthy ? "Healthy" : "Not Running";
+      const healthClass = live && live.healthy ? "ok" : "warn";
+      return `<tr><td>${escapeHtml(b.name)}</td><td>${members}</td><td><span class="pill ${healthClass}">${health}</span></td><td>${Number(b.enabled) ? "Yes" : "No"}</td><td class="actions">
+      <a href="/panel?view=add&edit=${b.id}">Edit</a>
+      <form method="POST" action="/panel/delete" onsubmit="return confirm('Delete this bot?');"><input type="hidden" name="id" value="${b.id}"/><button type="submit">Delete</button></form>
+      </td></tr>`;
+    })
+    .join("");
+  const current = botRows.find((b) => Number(b.id) === Number(editingId));
+  const buttons = (() => {
+    try {
+      const parsed = JSON.parse(String(current?.welcome_buttons ?? "[]"));
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
+  const buttonAt = (i, key) => escapeHtml(buttons[i - 1]?.[key] ?? "");
+  const dashboardTopBots = topBots
+    .map(
+      (r) =>
+        `<tr><td>${escapeHtml(r.name)}</td><td>${Number(r.members || 0)}</td><td><span class="pill ${
+          r.healthy ? "ok" : "warn"
+        }">${r.healthy ? "Healthy" : "Issue"}</span></td></tr>`
+    )
+    .join("");
+  const content = (() => {
+    if (view === "bots") {
+      return `<div class="panel"><h2>All Bots</h2><table><thead><tr><th>Bot</th><th>Members</th><th>Status</th><th>Enabled</th><th>Actions</th></tr></thead><tbody>${tableRows || "<tr><td colspan='5'>No bots found.</td></tr>"}</tbody></table></div>`;
+    }
+    if (view === "logs") {
+      const logRows = statusRows
+        .map((r) => {
+          const level = r.lastPollingError ? "ERROR" : "INFO";
+          const msg = r.lastPollingError
+            ? r.lastPollingError
+            : `${r.name} operational with ${r.members} members tracked.`;
+          return `<div class="log-line"><span class="log-time">[${new Date()
+            .toISOString()
+            .slice(11, 19)}]</span><strong>${level}</strong> ${escapeHtml(msg)}</div>`;
+        })
+        .join("");
+      return `<div class="panel"><h2>Global Logs</h2><div class="logs-box">${
+        logRows || "<div class='log-line'>No logs yet.</div>"
+      }</div></div>`;
+    }
+    if (view === "config") {
+      return `<div class="panel"><h2>API Config</h2><div class="text-screen">
+        <p>Primary endpoint: <strong>Telegram Bot API (long polling)</strong></p>
+        <p>Active bots: <strong>${totalBots}</strong></p>
+        <p>Healthy bots: <strong>${healthyBots}</strong></p>
+        <p>SQLite source: <strong>data/config.sqlite</strong></p>
+        <p>Panel auth: <strong>single admin via .env</strong></p>
+      </div></div>`;
+    }
+    if (view === "analytics") {
+      const avg = totalBots > 0 ? (totalMembers / totalBots).toFixed(1) : "0";
+      return `<div class="panel"><h2>User Analytics</h2><div class="text-screen">
+        <p>Total tracked members: <strong>${totalMembers}</strong></p>
+        <p>Average members per bot: <strong>${avg}</strong></p>
+        <p>Enabled bot share: <strong>${enabledBots}/${totalBots}</strong></p>
+        <p>Polling error count (live session): <strong>${totalErrors}</strong></p>
+      </div></div>`;
+    }
+    if (view === "add") {
+      return `<div class="panel"><h2>${current ? "Edit Bot" : "Add Bot"}</h2>
+<form class="main" method="POST" action="/panel/save">
+<input type="hidden" name="id" value="${current ? current.id : ""}"/>
+<div class="row"><label>Name<input name="name" required value="${escapeHtml(current?.name ?? "")}"/></label><label>Token<input name="token" required value="${escapeHtml(current?.token ?? "")}"/></label></div>
+<div class="row"><label>Admin IDs (comma)<input name="admin_ids" value="${escapeHtml(current?.admin_ids ?? "")}"/></label><label>Group Chat ID<input name="group_chat_id" value="${escapeHtml(current?.group_chat_id ?? "")}"/></label></div>
+<label>Welcome Message<textarea name="welcome_message">${escapeHtml(current?.welcome_message ?? "")}</textarea></label>
+<div class="row"><label>Welcome Image URL<input name="welcome_image" value="${escapeHtml(current?.welcome_image ?? "")}"/></label><label>Channel URL<input name="channel_url" value="${escapeHtml(current?.channel_url ?? "")}"/></label></div>
+<label>Random Channel URLs (comma)<input name="random_channel_urls" value="${escapeHtml(current?.random_channel_urls ?? "")}"/></label>
+<div class="row"><label>Button 1 Text<input name="button_1_text" value="${buttonAt(1, "text")}"/></label><label>Button 1 URL<input name="button_1_url" value="${buttonAt(1, "url")}"/></label></div>
+<div class="row"><label>Button 2 Text<input name="button_2_text" value="${buttonAt(2, "text")}"/></label><label>Button 2 URL<input name="button_2_url" value="${buttonAt(2, "url")}"/></label></div>
+<div class="row"><label>Button 3 Text<input name="button_3_text" value="${buttonAt(3, "text")}"/></label><label>Button 3 URL<input name="button_3_url" value="${buttonAt(3, "url")}"/></label></div>
+<div class="row"><label>Button 4 Text<input name="button_4_text" value="${buttonAt(4, "text")}"/></label><label>Button 4 URL<input name="button_4_url" value="${buttonAt(4, "url")}"/></label></div>
+<div class="row"><label>Button 5 Text<input name="button_5_text" value="${buttonAt(5, "text")}"/></label><label>Button 5 URL<input name="button_5_url" value="${buttonAt(5, "url")}"/></label></div>
+<label class="check"><input type="checkbox" name="enabled" ${Number(current?.enabled ?? 1) ? "checked" : ""}/> Enabled</label>
+<div class="submit"><button class="primary" type="submit">Save Bot</button><a class="muted" href="/panel?view=add">Reset</a></div></form></div>`;
+    }
+    return `<section class="dashboard-hero">
+      <h2 class="hero-title">Fleet Command</h2>
+      <p class="hero-sub">Real-time oversight and resource allocation for your Telegram bot ecosystem.</p>
+      <div class="stats-grid">
+        <div class="stat"><div class="k">Active Fleet</div><div class="v">${healthyBots}</div></div>
+        <div class="stat"><div class="k">Total Users</div><div class="v">${totalMembers}</div></div>
+        <div class="stat"><div class="k">Total Members</div><div class="v">${totalMembers}</div></div>
+        <div class="stat"><div class="k">Enabled Bots</div><div class="v">${enabledBots}</div></div>
+        <div class="stat"><div class="k">API Reliability Alerts</div><div class="v">${totalErrors}</div></div>
+      </div>
+    </section>
+    <section class="dashboard-grid">
+      <div class="panel"><h2>Top Bots by Members</h2><table><thead><tr><th>Bot</th><th>Members</th><th>Status</th></tr></thead><tbody>${
+        dashboardTopBots || "<tr><td colspan='3'>No member data yet.</td></tr>"
+      }</tbody></table></div>
+      <div class="panel"><h2>Quick Insights</h2><ul class="mini-list">
+        <li class="mini-item"><div><div class="name">Live Coverage</div><div class="sub">Bots currently healthy</div></div><div class="num">${healthyBots}/${totalBots}</div></li>
+        <li class="mini-item"><div><div class="name">Member Base</div><div class="sub">Total tracked private users</div></div><div class="num">${totalMembers}</div></li>
+        <li class="mini-item"><div><div class="name">Risk Alerts</div><div class="sub">Polling conflicts and other errors</div></div><div class="num">${totalErrors}</div></li>
+      </ul></div>
+    </section>`;
+  })();
+  const tpl = readTemplateFile("panel.html");
+  return tpl
+    .replace("{{dashboard_active}}", view === "dashboard" ? "active" : "")
+    .replace("{{bots_active}}", view === "bots" ? "active" : "")
+    .replace("{{logs_active}}", view === "logs" ? "active" : "")
+    .replace("{{config_active}}", view === "config" ? "active" : "")
+    .replace("{{analytics_active}}", view === "analytics" ? "active" : "")
+    .replace("{{add_active}}", view === "add" ? "active" : "")
+    .replace("{{content}}", content)
+    .replace(
+      "{{notice_block}}",
+      notice ? `<div class="panel"><div class="note">${escapeHtml(notice)}</div></div>` : ""
+    );
+}
+
+function startAdminPanel(db, instances) {
+  const sessions = new Set();
+  const isAuthed = (req) => sessions.has(parseCookies(req).session || "");
+  const redirect = (res, to) => {
+    res.writeHead(302, { Location: to });
+    res.end();
+  };
+  const readForm = async (req) => new URLSearchParams(await parseBody(req));
+  const saveStmt = db.prepare(`
+    INSERT INTO bots (
+      name, token, admin_ids, enabled, welcome_message, welcome_image, group_chat_id,
+      channel_url, random_channel_urls, welcome_buttons, created_at, updated_at
+    ) VALUES (
+      @name, @token, @admin_ids, @enabled, @welcome_message, @welcome_image, @group_chat_id,
+      @channel_url, @random_channel_urls, @welcome_buttons, @created_at, @updated_at
+    )
+  `);
+  const updateStmt = db.prepare(`
+    UPDATE bots SET
+      name=@name, token=@token, admin_ids=@admin_ids, enabled=@enabled, welcome_message=@welcome_message,
+      welcome_image=@welcome_image, group_chat_id=@group_chat_id, channel_url=@channel_url,
+      random_channel_urls=@random_channel_urls, welcome_buttons=@welcome_buttons, updated_at=@updated_at
+    WHERE id=@id
+  `);
+  const deleteStmt = db.prepare("DELETE FROM bots WHERE id = ?");
+
+  const server = http.createServer(async (req, res) => {
+    try {
+      const reqUrl = new URL(req.url ?? "/", "http://localhost");
+      if (req.method === "GET" && reqUrl.pathname === "/assets/login.css") {
+        const css = readTemplateFile("assets/login.css");
+        res.writeHead(200, { "Content-Type": "text/css; charset=utf-8" });
+        res.end(css);
+        return;
+      }
+      if (req.method === "GET" && reqUrl.pathname === "/assets/panel.css") {
+        const css = readTemplateFile("assets/panel.css");
+        res.writeHead(200, { "Content-Type": "text/css; charset=utf-8" });
+        res.end(css);
+        return;
+      }
+      if (req.method === "GET" && reqUrl.pathname === "/login") {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderLoginPage());
+        return;
+      }
+      if (req.method === "POST" && reqUrl.pathname === "/login") {
+        const form = await readForm(req);
+        const user = String(form.get("username") ?? "").trim();
+        const pass = String(form.get("password") ?? "");
+        if (user === PANEL_USERNAME && pass === PANEL_PASSWORD && PANEL_PASSWORD) {
+          const sid = crypto.randomBytes(24).toString("hex");
+          sessions.add(sid);
+          res.writeHead(302, {
+            Location: "/panel",
+            "Set-Cookie": `session=${sid}; HttpOnly; SameSite=Lax; Path=/`,
+          });
+          res.end();
+          return;
+        }
+        res.writeHead(401, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(renderLoginPage("Invalid credentials."));
+        return;
+      }
+      if (req.method === "GET" && reqUrl.pathname === "/logout") {
+        const sid = parseCookies(req).session || "";
+        sessions.delete(sid);
+        res.writeHead(302, {
+          Location: "/login",
+          "Set-Cookie": "session=; Max-Age=0; Path=/",
+        });
+        res.end();
+        return;
+      }
+      if (!isAuthed(req)) {
+        redirect(res, "/login");
+        return;
+      }
+      if (req.method === "GET" && (reqUrl.pathname === "/" || reqUrl.pathname === "/panel")) {
+        const rows = loadBotRows(db);
+        const live = getStatusRows(instances);
+        const edit = Number(reqUrl.searchParams.get("edit") || 0);
+        const notice = reqUrl.searchParams.get("notice") || "";
+        const view = String(reqUrl.searchParams.get("view") || "dashboard");
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(
+          renderPanelPage({
+            botRows: rows,
+            statusRows: live,
+            editingId: edit,
+            notice,
+            view,
+          })
+        );
+        return;
+      }
+      if (req.method === "POST" && reqUrl.pathname === "/panel/save") {
+        const form = await readForm(req);
+        const buttons = parseButtonsFromForm(form);
+        const payload = {
+          id: Number(form.get("id") || 0),
+          name: String(form.get("name") ?? "").trim(),
+          token: String(form.get("token") ?? "").trim(),
+          admin_ids: String(form.get("admin_ids") ?? "").trim(),
+          enabled: form.get("enabled") ? 1 : 0,
+          welcome_message: String(form.get("welcome_message") ?? "").trim(),
+          welcome_image: String(form.get("welcome_image") ?? "").trim(),
+          group_chat_id: String(form.get("group_chat_id") ?? "").trim(),
+          channel_url: String(form.get("channel_url") ?? "").trim(),
+          random_channel_urls: String(form.get("random_channel_urls") ?? "").trim(),
+          welcome_buttons: JSON.stringify(buttons),
+          updated_at: new Date().toISOString(),
+        };
+        if (!payload.name || !payload.token) {
+          redirect(res, "/panel?view=add&notice=Name%20and%20token%20are%20required");
+          return;
+        }
+        if (payload.id > 0) {
+          updateStmt.run(payload);
+          redirect(
+            res,
+            "/panel?view=bots&notice=Bot%20updated.%20Restart%20app%20to%20apply."
+          );
+          return;
+        }
+        saveStmt.run({ ...payload, created_at: payload.updated_at });
+        redirect(
+          res,
+          "/panel?view=bots&notice=Bot%20created.%20Restart%20app%20to%20apply."
+        );
+        return;
+      }
+      if (req.method === "POST" && reqUrl.pathname === "/panel/delete") {
+        const form = await readForm(req);
+        const id = Number(form.get("id") || 0);
+        if (id > 0) deleteStmt.run(id);
+        redirect(
+          res,
+          "/panel?view=bots&notice=Bot%20deleted.%20Restart%20app%20to%20apply."
+        );
+        return;
+      }
+      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Not found");
+    } catch (err) {
+      res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+      res.end("Server error");
+      console.error("Panel error:", err.message);
+    }
+  });
+
+  server.listen(PANEL_PORT, PANEL_HOST, () => {
+    console.log(`Admin panel: http://${PANEL_HOST}:${PANEL_PORT}/login`);
+  });
+}
+
+const { configs, source, db } = resolveConfigs();
 console.log(`Config: ${configs.length} bot(s) from ${source}`);
+const instances = [];
 for (const cfg of configs) {
-  startBot(cfg);
+  instances.push(startBot(cfg));
 }
 console.log("All bots polling. Press Ctrl+C to stop.");
+startAdminPanel(db, instances);
