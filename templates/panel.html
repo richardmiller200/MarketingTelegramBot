@@ -50,6 +50,10 @@
         <span class="material-symbols-outlined">groups</span>
         <span>Interacted Users</span>
       </a>
+      <a class="menu-link {{broadcast_active}}" href="/panel?view=broadcast">
+        <span class="material-symbols-outlined">campaign</span>
+        <span>Broadcast</span>
+      </a>
       <a class="menu-link menu-cta {{add_active}}" href="/panel?view=add">
         <span class="material-symbols-outlined">add_circle</span>
         <span>Deploy New Bot</span>
@@ -86,27 +90,199 @@
   <script>
     (() => {
       const input = document.getElementById("global-search");
-      if (!input) return;
-
-      function applySearch() {
-        const query = input.value.trim().toLowerCase();
-        const nodes = [...document.querySelectorAll("[data-searchable]")];
-        if (nodes.length === 0) return;
-        for (const node of nodes) {
-          const haystack = (node.getAttribute("data-searchable") || node.textContent || "")
-            .toLowerCase();
-          node.style.display = !query || haystack.includes(query) ? "" : "none";
+      if (input) {
+        function applySearch() {
+          const query = input.value.trim().toLowerCase();
+          const nodes = [...document.querySelectorAll("[data-searchable]")];
+          if (nodes.length === 0) return;
+          for (const node of nodes) {
+            const haystack = (node.getAttribute("data-searchable") || node.textContent || "")
+              .toLowerCase();
+            node.style.display = !query || haystack.includes(query) ? "" : "none";
+          }
         }
+
+        input.addEventListener("input", applySearch);
+        document.addEventListener("keydown", (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+            e.preventDefault();
+            input.focus();
+            input.select();
+          }
+        });
       }
 
-      input.addEventListener("input", applySearch);
-      document.addEventListener("keydown", (e) => {
-        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-          e.preventDefault();
-          input.focus();
-          input.select();
-        }
-      });
+      const form = document.querySelector("form.main[action='/panel/save']");
+      const previewText = form?.querySelector("[data-preview-text]");
+      const previewButtons = form?.querySelector("[data-preview-buttons]");
+      if (form && previewText && previewButtons) {
+        const addSaveButton = form.querySelector("[data-add-save-button]");
+        const saveButtonRows = [...form.querySelectorAll("[data-save-button-row]")];
+        const shownSaveCount = () =>
+          saveButtonRows.filter((r) => getComputedStyle(r).display !== "none").length;
+        const toggleAddSaveButton = () => {
+          if (!addSaveButton) return;
+          addSaveButton.style.display = shownSaveCount() >= saveButtonRows.length ? "none" : "";
+        };
+        addSaveButton?.addEventListener("click", () => {
+          const next = saveButtonRows.find((r) => getComputedStyle(r).display === "none");
+          if (next) next.style.display = "";
+          toggleAddSaveButton();
+        });
+        [...form.querySelectorAll("[data-remove-save-button]")].forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const idx = Number(btn.getAttribute("data-remove-save-button") || 0);
+            const row = form.querySelector(`[data-save-button-row='${idx}']`);
+            if (!row) return;
+            row.querySelectorAll("input").forEach((el) => {
+              el.value = "";
+            });
+            row.querySelectorAll("select").forEach((el) => {
+              el.value = "2";
+            });
+            row.style.display = "none";
+            toggleAddSaveButton();
+            renderPreview();
+          });
+        });
+
+        const esc = (s) =>
+          String(s ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#39;");
+        const toRowSize = (n, fallback = 2) => {
+          const x = Number(n);
+          if (Number.isNaN(x)) return fallback;
+          return Math.max(1, Math.min(3, Math.floor(x)));
+        };
+        const renderPreview = () => {
+          const msg = form.querySelector("textarea[name='welcome_message']")?.value?.trim() || "";
+          previewText.innerHTML = esc(msg || "Welcome message will appear here...").replaceAll("\n", "<br>");
+
+          const fallback = toRowSize(
+            form.querySelector("select[name='buttons_per_row']")?.value ?? 2,
+            2
+          );
+          const buttons = [];
+          for (let i = 1; i <= 5; i += 1) {
+            const text = form.querySelector(`input[name='button_${i}_text']`)?.value?.trim() || "";
+            const url = form.querySelector(`input[name='button_${i}_url']`)?.value?.trim() || "";
+            const row = toRowSize(
+              form.querySelector(`select[name='button_${i}_row']`)?.value ?? fallback,
+              fallback
+            );
+            if (text && /^https?:\/\//i.test(url)) buttons.push({ text, row });
+          }
+
+          if (buttons.length === 0) {
+            previewButtons.innerHTML = "";
+            return;
+          }
+
+          let html = "";
+          for (let i = 0; i < buttons.length; ) {
+            const size = toRowSize(buttons[i].row, fallback);
+            const row = buttons.slice(i, i + size);
+            html += `<div class="tg-row">${row
+              .map((b) => `<button type="button" class="tg-btn">${esc(b.text)}</button>`)
+              .join("")}</div>`;
+            i += size;
+          }
+          previewButtons.innerHTML = html;
+        };
+
+        form.addEventListener("input", renderPreview);
+        form.addEventListener("change", renderPreview);
+        toggleAddSaveButton();
+        renderPreview();
+      }
+
+      const broadcastForm = document.querySelector("form.main[action='/panel/broadcast']");
+      const bPreviewText = broadcastForm?.querySelector("[data-broadcast-preview-text]");
+      const bPreviewButtons = broadcastForm?.querySelector("[data-broadcast-preview-buttons]");
+      if (broadcastForm && bPreviewText && bPreviewButtons) {
+        const addButton = broadcastForm.querySelector("[data-add-broadcast-button]");
+        const buttonRows = [...broadcastForm.querySelectorAll("[data-broadcast-button-row]")];
+        const shownCount = () =>
+          buttonRows.filter((r) => getComputedStyle(r).display !== "none").length;
+        const toggleAddButton = () => {
+          if (!addButton) return;
+          addButton.style.display = shownCount() >= buttonRows.length ? "none" : "";
+        };
+        addButton?.addEventListener("click", () => {
+          const next = buttonRows.find((r) => getComputedStyle(r).display === "none");
+          if (next) next.style.display = "";
+          toggleAddButton();
+        });
+        [...broadcastForm.querySelectorAll("[data-remove-broadcast-button]")].forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const idx = Number(btn.getAttribute("data-remove-broadcast-button") || 0);
+            const row = broadcastForm.querySelector(`[data-broadcast-button-row='${idx}']`);
+            if (!row) return;
+            row.querySelectorAll("input").forEach((el) => {
+              el.value = "";
+            });
+            row.querySelectorAll("select").forEach((el) => {
+              el.value = "2";
+            });
+            row.style.display = "none";
+            toggleAddButton();
+            renderBroadcastPreview();
+          });
+        });
+
+        const esc = (s) =>
+          String(s ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#39;");
+        const toRowSize = (n, fallback = 2) => {
+          const x = Number(n);
+          if (Number.isNaN(x)) return fallback;
+          return Math.max(1, Math.min(3, Math.floor(x)));
+        };
+        const renderBroadcastPreview = () => {
+          const msg = broadcastForm.querySelector("textarea[name='broadcast_message']")?.value?.trim() || "";
+          bPreviewText.innerHTML = esc(msg || "Broadcast message will appear here...").replaceAll("\n", "<br>");
+          const fallback = toRowSize(
+            broadcastForm.querySelector("select[name='broadcast_buttons_per_row']")?.value ?? 2,
+            2
+          );
+          const buttons = [];
+          for (let i = 1; i <= 5; i += 1) {
+            const text = broadcastForm.querySelector(`input[name='broadcast_button_${i}_text']`)?.value?.trim() || "";
+            const url = broadcastForm.querySelector(`input[name='broadcast_button_${i}_url']`)?.value?.trim() || "";
+            const row = toRowSize(
+              broadcastForm.querySelector(`select[name='broadcast_button_${i}_row']`)?.value ?? fallback,
+              fallback
+            );
+            if (text && /^https?:\/\//i.test(url)) buttons.push({ text, row });
+          }
+          if (buttons.length === 0) {
+            bPreviewButtons.innerHTML = "";
+            return;
+          }
+          let html = "";
+          for (let i = 0; i < buttons.length; ) {
+            const size = toRowSize(buttons[i].row, fallback);
+            const row = buttons.slice(i, i + size);
+            html += `<div class="tg-row">${row
+              .map((b) => `<button type="button" class="tg-btn">${esc(b.text)}</button>`)
+              .join("")}</div>`;
+            i += size;
+          }
+          bPreviewButtons.innerHTML = html;
+        };
+        broadcastForm.addEventListener("input", renderBroadcastPreview);
+        broadcastForm.addEventListener("change", renderBroadcastPreview);
+        toggleAddButton();
+        renderBroadcastPreview();
+      }
     })();
   </script>
 

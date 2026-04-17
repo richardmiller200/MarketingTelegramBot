@@ -532,6 +532,24 @@ form.main .row.button-row {
   grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.35fr) minmax(110px, 0.5fr);
   align-items: end;
 }
+form.main .row.button-row.broadcast-button-row {
+  grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.35fr) minmax(110px, 0.5fr) auto;
+}
+form.main .row.button-row.save-button-row {
+  grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.35fr) minmax(110px, 0.5fr) auto;
+}
+form.main .broadcast-remove-btn {
+  align-self: end;
+}
+form.main .save-remove-btn {
+  align-self: end;
+}
+form.main .hint {
+  margin: -6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+}
 form.main label {
   display: flex;
   flex-direction: column;
@@ -627,6 +645,78 @@ form.main .submit .muted {
   transition: background-color .2s, color .2s;
 }
 form.main .submit .muted:hover { color: var(--on-surface); background: var(--surface-container-high); }
+
+/* ---------- Telegram Preview (add/edit) ---------- */
+.telegram-preview {
+  padding-bottom: 18px;
+}
+.telegram-preview h2 {
+  margin-bottom: 0;
+}
+
+/* Preview sits inside form.main — no second card shell; title matches form labels */
+form.main .telegram-preview {
+  margin: 0;
+  padding: 0 0 18px;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+form.main .telegram-preview h2 {
+  margin: 0 0 10px;
+  padding: 0;
+  font-family: "Manrope", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+  background: none;
+}
+form.main .telegram-preview .tg-screen {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(70, 72, 75, 0.22);
+}
+
+.tg-screen {
+  padding: 16px 18px 2px;
+  background: linear-gradient(180deg, #1a2430 0%, #101820 100%);
+}
+.tg-bubble {
+  max-width: 560px;
+  background: #1f2c39;
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.tg-text {
+  color: #eaf3ff;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: normal;
+}
+.tg-buttons {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tg-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
+}
+.tg-btn {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #3d6f95;
+  color: #f3f9ff;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
 
 /* ---------- Config / Analytics (text-screen) ---------- */
 .text-screen {

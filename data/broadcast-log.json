@@ -1,0 +1,42 @@
+[
+  {
+    "at": "2026-04-17T15:25:47.727Z",
+    "botName": "Adheri Club",
+    "mode": "test",
+    "recipients": 1,
+    "sent": 1,
+    "failed": 0,
+    "ok": true,
+    "note": "Test sent to 5450749498"
+  },
+  {
+    "at": "2026-04-17T15:26:02.804Z",
+    "botName": "Adheri Club",
+    "mode": "full",
+    "recipients": 1,
+    "sent": 1,
+    "failed": 0,
+    "ok": true,
+    "note": "Completed"
+  },
+  {
+    "at": "2026-04-17T15:29:26.339Z",
+    "botName": "Adheri Club",
+    "mode": "full",
+    "recipients": 1,
+    "sent": 1,
+    "failed": 0,
+    "ok": true,
+    "note": "Completed"
+  },
+  {
+    "at": "2026-04-17T15:29:27.365Z",
+    "botName": "BDG555",
+    "mode": "full",
+    "recipients": 2,
+    "sent": 2,
+    "failed": 0,
+    "ok": true,
+    "note": "Completed"
+  }
+]

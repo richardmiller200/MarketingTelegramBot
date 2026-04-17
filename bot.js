@@ -32,6 +32,7 @@ const PANEL_MAX_FAILED_ATTEMPTS = 3;
 const DB_FILE = path.join(ROOT, "data", "config.sqlite");
 const TEMPLATES_DIR = path.join(ROOT, "templates");
 const ADMIN_LOGIN_STATE_FILE = path.join(ROOT, "data", "admin-login-state.json");
+const BROADCAST_LOG_FILE = path.join(ROOT, "data", "broadcast-log.json");
 
 function parseAdminIds(raw) {
   return String(raw ?? "")
@@ -1054,6 +1055,7 @@ function startBot(cfg) {
   const store = createUserStore(usersFile);
   const logPrefix = `[${cfg.name}]`;
   const runtime = {
+    id: Number(cfg.id) || 0,
     name: cfg.name,
     slug: cfg.slug,
     usersFile,
@@ -1127,6 +1129,7 @@ function getStatusRows(instances) {
   return instances.map(({ runtime }) => {
     const members = countMembers(runtime.usersFile);
     return {
+      id: Number(runtime.id || 0),
       name: runtime.name,
       slug: runtime.slug,
       members,
@@ -1186,6 +1189,38 @@ function parseButtonsFromForm(form) {
   return buttons;
 }
 
+function parseBroadcastButtonsFromForm(form) {
+  const buttons = [];
+  const fallbackPerRow = parseButtonsPerRow(form.get("broadcast_buttons_per_row") ?? 2);
+  for (let i = 1; i <= 5; i += 1) {
+    const text = String(form.get(`broadcast_button_${i}_text`) ?? "").trim();
+    const url = String(form.get(`broadcast_button_${i}_url`) ?? "").trim();
+    const perRow = parseButtonsPerRow(form.get(`broadcast_button_${i}_row`) ?? "", fallbackPerRow);
+    if (text && /^https?:\/\//i.test(url)) {
+      buttons.push({ text, url, perRow });
+    }
+  }
+  return buttons;
+}
+
+/** Same row layout as welcome inline keyboard (per-button row size + fallback). */
+function buildUrlButtonReplyMarkup(buttons, fallbackPerRow = 2) {
+  if (!Array.isArray(buttons) || buttons.length === 0) return undefined;
+  const fb = parseButtonsPerRow(fallbackPerRow, 2);
+  const inlineKeyboard = [];
+  let index = 0;
+  while (index < buttons.length) {
+    const current = buttons[index] ?? {};
+    const fromButton = parseButtonsPerRow(current.perRow, 0);
+    const rowSize = fromButton >= 1 && fromButton <= 3 ? fromButton : fb;
+    inlineKeyboard.push(
+      buttons.slice(index, index + rowSize).map((b) => ({ text: b.text, url: b.url }))
+    );
+    index += rowSize;
+  }
+  return { inline_keyboard: inlineKeyboard };
+}
+
 function loadBotRows(db) {
   return db.prepare("SELECT * FROM bots ORDER BY id ASC").all();
 }
@@ -1211,6 +1246,42 @@ function readAdminLoginState() {
 function writeAdminLoginState(state) {
   fs.mkdirSync(path.dirname(ADMIN_LOGIN_STATE_FILE), { recursive: true });
   fs.writeFileSync(ADMIN_LOGIN_STATE_FILE, JSON.stringify(state, null, 2));
+}
+
+function loadBroadcastLogs(limit = 20) {
+  try {
+    if (!fs.existsSync(BROADCAST_LOG_FILE)) return [];
+    const rows = JSON.parse(fs.readFileSync(BROADCAST_LOG_FILE, "utf8"));
+    if (!Array.isArray(rows)) return [];
+    return rows.slice(-limit).reverse();
+  } catch {
+    return [];
+  }
+}
+
+function appendBroadcastLog(entry) {
+  const now = new Date().toISOString();
+  const next = {
+    at: now,
+    botName: String(entry.botName ?? "").trim(),
+    mode: String(entry.mode ?? "full").trim(),
+    recipients: Number(entry.recipients || 0),
+    sent: Number(entry.sent || 0),
+    failed: Number(entry.failed || 0),
+    ok: Boolean(entry.ok),
+    note: String(entry.note ?? "").trim(),
+  };
+  let rows = [];
+  try {
+    if (fs.existsSync(BROADCAST_LOG_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(BROADCAST_LOG_FILE, "utf8"));
+      if (Array.isArray(parsed)) rows = parsed;
+    }
+  } catch {}
+  rows.push(next);
+  if (rows.length > 200) rows = rows.slice(rows.length - 200);
+  fs.mkdirSync(path.dirname(BROADCAST_LOG_FILE), { recursive: true });
+  fs.writeFileSync(BROADCAST_LOG_FILE, JSON.stringify(rows, null, 2));
 }
 
 function renderLoginPage(error = "") {
@@ -1257,6 +1328,27 @@ function renderPanelPage({
     })
     .join("");
   const current = botRows.find((b) => Number(b.id) === Number(editingId));
+  const runningBotOptions = botRows
+    .map((b) => {
+      const live = statusRows.find((r) => Number(r.id || 0) === Number(b.id || 0));
+      if (!live) return null;
+      const members = Number(live.members || 0);
+      return `<option value="${Number(b.id)}">${escapeHtml(String(b.name ?? ""))} (${members} users)</option>`;
+    })
+    .filter(Boolean)
+    .join("");
+  const broadcastHistoryRows = loadBroadcastLogs(25)
+    .map(
+      (r) =>
+        `<tr data-searchable="${escapeHtml(`${r.botName} ${r.mode} ${r.sent} ${r.failed} ${r.note}`)}"><td>${escapeHtml(
+          String(r.at ?? "")
+        )}</td><td>${escapeHtml(r.botName)}</td><td>${escapeHtml(r.mode)}</td><td>${Number(
+          r.recipients || 0
+        )}</td><td>${Number(r.sent || 0)}</td><td>${Number(r.failed || 0)}</td><td>${escapeHtml(
+          r.note || (r.ok ? "OK" : "Failed")
+        )}</td></tr>`
+    )
+    .join("");
   const buttons = (() => {
     try {
       const parsed = JSON.parse(String(current?.welcome_buttons ?? "[]"));
@@ -1268,6 +1360,11 @@ function renderPanelPage({
   const buttonAt = (i, key) => escapeHtml(buttons[i - 1]?.[key] ?? "");
   const buttonRowAt = (i) =>
     parseButtonsPerRow(buttons[i - 1]?.perRow ?? current?.buttons_per_row ?? 2);
+  const hasButtonAt = (i) => {
+    const text = String(buttons[i - 1]?.text ?? "").trim();
+    const url = String(buttons[i - 1]?.url ?? "").trim();
+    return Boolean(text && /^https?:\/\//i.test(url));
+  };
   const dashboardTopBots = topBots
     .map(
       (r) =>
@@ -1360,6 +1457,55 @@ function renderPanelPage({
         </table>
       </div>`;
     }
+    if (view === "broadcast") {
+      const broadcastButtonRowsHtml = [1, 2, 3, 4, 5]
+        .map(
+          (i) =>
+            `<div class="row button-row broadcast-button-row" data-broadcast-button-row="${i}" ${
+              i === 1 ? "" : "style='display:none'"
+            }><label>Button ${i} Text<input name="broadcast_button_${i}_text" placeholder="Optional"/></label><label>Button ${i} URL<input name="broadcast_button_${i}_url" placeholder="https://..."/></label><label>Row Size<select name="broadcast_button_${i}_row"><option value="1">1/1</option><option value="2" selected>1/2</option><option value="3">1/3</option></select></label>${
+              i === 1
+                ? "<div></div>"
+                : `<button type="button" class="muted broadcast-remove-btn" data-remove-broadcast-button="${i}">Remove</button>`
+            }</div>`
+        )
+        .join("");
+      return `<div class="panel"><h2>Broadcast</h2>
+<form class="main" method="POST" action="/panel/broadcast">
+<div class="row"><label>Select Bot(s)
+  <select name="bot_ids" multiple required>
+    ${runningBotOptions}
+  </select>
+</label><label>Test Chat ID (optional)<input name="test_chat_id" placeholder="123456789"/></label></div>
+<div class="hint">Hold Cmd/Ctrl to select multiple bots.</div>
+<label>Message<textarea name="broadcast_message" required placeholder="Type broadcast message..."></textarea></label>
+<div class="row"><label>Buttons Per Row (fallback)
+  <select name="broadcast_buttons_per_row">
+    <option value="1">1</option>
+    <option value="2" selected>2</option>
+    <option value="3">3</option>
+  </select>
+</label><div></div></div>
+${broadcastButtonRowsHtml}
+<div class="submit"><button type="button" class="muted" data-add-broadcast-button>Add Button</button></div>
+<div class="telegram-preview" data-preview-box>
+  <h2>Broadcast Preview</h2>
+  <div class="tg-screen">
+    <div class="tg-bubble">
+      <div class="tg-text" data-broadcast-preview-text>Broadcast message will appear here...</div>
+      <div class="tg-buttons" data-broadcast-preview-buttons></div>
+    </div>
+  </div>
+</div>
+<label class="check"><input type="checkbox" name="test_mode" /> Test mode (send only once to Test Chat ID)</label>
+<div class="submit"><button class="primary" type="submit">Send Broadcast</button></div>
+</form>
+<table>
+  <thead><tr><th>Time</th><th>Bot</th><th>Mode</th><th>Recipients</th><th>Sent</th><th>Failed</th><th>Note</th></tr></thead>
+  <tbody>${broadcastHistoryRows || "<tr><td colspan='7'>No broadcast history yet.</td></tr>"}</tbody>
+</table>
+</div>`;
+    }
     if (view === "add") {
       return `<div class="panel"><h2>${current ? "Edit Bot" : "Add Bot"}</h2>
 <form class="main" method="POST" action="/panel/save">
@@ -1375,11 +1521,21 @@ function renderPanelPage({
 </label><div></div></div>
 <label>Welcome Message<textarea name="welcome_message">${escapeHtml(current?.welcome_message ?? "")}</textarea></label>
 <div class="row"><label>Welcome Image URL<input name="welcome_image" value="${escapeHtml(current?.welcome_image ?? "")}"/></label><label>Channel URL<input name="channel_url" value="${escapeHtml(current?.channel_url ?? "")}"/></label></div>
-<div class="row button-row"><label>Button 1 Text<input name="button_1_text" value="${buttonAt(1, "text")}"/></label><label>Button 1 URL<input name="button_1_url" value="${buttonAt(1, "url")}"/></label><label>Row Size<select name="button_1_row"><option value="1" ${buttonRowAt(1) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(1) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(1) === 3 ? "selected" : ""}>1/3</option></select></label></div>
-<div class="row button-row"><label>Button 2 Text<input name="button_2_text" value="${buttonAt(2, "text")}"/></label><label>Button 2 URL<input name="button_2_url" value="${buttonAt(2, "url")}"/></label><label>Row Size<select name="button_2_row"><option value="1" ${buttonRowAt(2) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(2) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(2) === 3 ? "selected" : ""}>1/3</option></select></label></div>
-<div class="row button-row"><label>Button 3 Text<input name="button_3_text" value="${buttonAt(3, "text")}"/></label><label>Button 3 URL<input name="button_3_url" value="${buttonAt(3, "url")}"/></label><label>Row Size<select name="button_3_row"><option value="1" ${buttonRowAt(3) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(3) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(3) === 3 ? "selected" : ""}>1/3</option></select></label></div>
-<div class="row button-row"><label>Button 4 Text<input name="button_4_text" value="${buttonAt(4, "text")}"/></label><label>Button 4 URL<input name="button_4_url" value="${buttonAt(4, "url")}"/></label><label>Row Size<select name="button_4_row"><option value="1" ${buttonRowAt(4) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(4) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(4) === 3 ? "selected" : ""}>1/3</option></select></label></div>
-<div class="row button-row"><label>Button 5 Text<input name="button_5_text" value="${buttonAt(5, "text")}"/></label><label>Button 5 URL<input name="button_5_url" value="${buttonAt(5, "url")}"/></label><label>Row Size<select name="button_5_row"><option value="1" ${buttonRowAt(5) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(5) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(5) === 3 ? "selected" : ""}>1/3</option></select></label></div>
+<div class="row button-row save-button-row" data-save-button-row="1"><label>Button 1 Text<input name="button_1_text" value="${buttonAt(1, "text")}"/></label><label>Button 1 URL<input name="button_1_url" value="${buttonAt(1, "url")}"/></label><label>Row Size<select name="button_1_row"><option value="1" ${buttonRowAt(1) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(1) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(1) === 3 ? "selected" : ""}>1/3</option></select></label><div></div></div>
+<div class="row button-row save-button-row" data-save-button-row="2" ${hasButtonAt(2) ? "" : "style='display:none'"}><label>Button 2 Text<input name="button_2_text" value="${buttonAt(2, "text")}"/></label><label>Button 2 URL<input name="button_2_url" value="${buttonAt(2, "url")}"/></label><label>Row Size<select name="button_2_row"><option value="1" ${buttonRowAt(2) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(2) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(2) === 3 ? "selected" : ""}>1/3</option></select></label><button type="button" class="muted save-remove-btn" data-remove-save-button="2">Remove</button></div>
+<div class="row button-row save-button-row" data-save-button-row="3" ${hasButtonAt(3) ? "" : "style='display:none'"}><label>Button 3 Text<input name="button_3_text" value="${buttonAt(3, "text")}"/></label><label>Button 3 URL<input name="button_3_url" value="${buttonAt(3, "url")}"/></label><label>Row Size<select name="button_3_row"><option value="1" ${buttonRowAt(3) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(3) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(3) === 3 ? "selected" : ""}>1/3</option></select></label><button type="button" class="muted save-remove-btn" data-remove-save-button="3">Remove</button></div>
+<div class="row button-row save-button-row" data-save-button-row="4" ${hasButtonAt(4) ? "" : "style='display:none'"}><label>Button 4 Text<input name="button_4_text" value="${buttonAt(4, "text")}"/></label><label>Button 4 URL<input name="button_4_url" value="${buttonAt(4, "url")}"/></label><label>Row Size<select name="button_4_row"><option value="1" ${buttonRowAt(4) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(4) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(4) === 3 ? "selected" : ""}>1/3</option></select></label><button type="button" class="muted save-remove-btn" data-remove-save-button="4">Remove</button></div>
+<div class="row button-row save-button-row" data-save-button-row="5" ${hasButtonAt(5) ? "" : "style='display:none'"}><label>Button 5 Text<input name="button_5_text" value="${buttonAt(5, "text")}"/></label><label>Button 5 URL<input name="button_5_url" value="${buttonAt(5, "url")}"/></label><label>Row Size<select name="button_5_row"><option value="1" ${buttonRowAt(5) === 1 ? "selected" : ""}>1/1</option><option value="2" ${buttonRowAt(5) === 2 ? "selected" : ""}>1/2</option><option value="3" ${buttonRowAt(5) === 3 ? "selected" : ""}>1/3</option></select></label><button type="button" class="muted save-remove-btn" data-remove-save-button="5">Remove</button></div>
+<div class="submit"><button type="button" class="muted" data-add-save-button>Add Button</button></div>
+<div class="telegram-preview" data-preview-box>
+  <h2>Message Preview</h2>
+  <div class="tg-screen">
+    <div class="tg-bubble">
+      <div class="tg-text" data-preview-text>${escapeHtml(current?.welcome_message ?? "") || "Welcome message will appear here..."}</div>
+      <div class="tg-buttons" data-preview-buttons></div>
+    </div>
+  </div>
+</div>
 <label class="check"><input type="checkbox" name="enabled" ${Number(current?.enabled ?? 1) ? "checked" : ""}/> Enabled</label>
 <div class="submit"><button class="primary" type="submit">Save Bot</button><a class="muted" href="/panel?view=add">Reset</a></div></form></div>`;
     }
@@ -1412,6 +1568,7 @@ function renderPanelPage({
     .replace("{{logs_active}}", view === "logs" ? "active" : "")
     .replace("{{analytics_active}}", view === "analytics" ? "active" : "")
     .replace("{{users_active}}", view === "users" ? "active" : "")
+    .replace("{{broadcast_active}}", view === "broadcast" ? "active" : "")
     .replace("{{add_active}}", view === "add" ? "active" : "")
     .replace("{{content}}", content)
     .replace(
@@ -1490,6 +1647,160 @@ function startAdminPanel(db, instances) {
       if (!nextCfg) return;
       instances.push(startBot(nextCfg));
     });
+  };
+  const runPanelBroadcastOne = async ({
+    botId,
+    message,
+    testMode,
+    testChatId,
+    broadcastButtons,
+    broadcastButtonsPerRow,
+  }) => {
+    const instance = instances.find((i) => Number(i?.cfg?.id || 0) === Number(botId || 0));
+    if (!instance) {
+      appendBroadcastLog({
+        botName: `#${Number(botId || 0)}`,
+        mode: testMode ? "test" : "full",
+        ok: false,
+        note: "Selected bot is not running",
+      });
+      return { ok: false, sent: 0, failed: 0, recipients: 0, notice: "Bot not running." };
+    }
+    const botName = String(instance.cfg?.name ?? `#${Number(botId || 0)}`);
+    const text = String(message ?? "").trim();
+    if (!text) {
+      appendBroadcastLog({
+        botName,
+        mode: testMode ? "test" : "full",
+        ok: false,
+        note: "Empty broadcast message",
+      });
+      return { ok: false, sent: 0, failed: 0, recipients: 0, notice: "Broadcast message is required." };
+    }
+    const recipients = instance.store.loadChatIds();
+    const buttons = Array.isArray(broadcastButtons) ? broadcastButtons : [];
+    const fb = parseButtonsPerRow(broadcastButtonsPerRow ?? 2);
+    const replyMarkup = buildUrlButtonReplyMarkup(buttons, fb);
+    const sendOptions = replyMarkup
+      ? { disable_web_page_preview: false, reply_markup: replyMarkup }
+      : { disable_web_page_preview: false };
+    if (testMode) {
+      const target = Number(testChatId || 0);
+      if (!target) {
+        appendBroadcastLog({
+          botName,
+          mode: "test",
+          ok: false,
+          note: "Missing test chat id",
+        });
+        return { ok: false, sent: 0, failed: 0, recipients: 0, notice: "Test mode needs a valid Test Chat ID." };
+      }
+      try {
+        await instance.bot.sendMessage(target, text, sendOptions);
+        appendBroadcastLog({
+          botName,
+          mode: "test",
+          recipients: 1,
+          sent: 1,
+          failed: 0,
+          ok: true,
+          note: `Test sent to ${target}`,
+        });
+        return { ok: true, sent: 1, failed: 0, recipients: 1, notice: "Test broadcast sent successfully." };
+      } catch (err) {
+        appendBroadcastLog({
+          botName,
+          mode: "test",
+          recipients: 1,
+          sent: 0,
+          failed: 1,
+          ok: false,
+          note: `Test send failed: ${String(err?.message ?? "unknown")}`,
+        });
+        return {
+          ok: false,
+          sent: 0,
+          failed: 1,
+          recipients: 1,
+          notice: `Test send failed: ${String(err?.message ?? "unknown")}`,
+        };
+      }
+    }
+    if (recipients.length === 0) {
+      appendBroadcastLog({
+        botName,
+        mode: "full",
+        recipients: 0,
+        sent: 0,
+        failed: 0,
+        ok: false,
+        note: "No interacted users found",
+      });
+      return { ok: false, sent: 0, failed: 0, recipients: 0, notice: "No interacted users found for this bot." };
+    }
+    let sent = 0;
+    let failed = 0;
+    for (const uid of recipients) {
+      try {
+        await instance.bot.sendMessage(uid, text, sendOptions);
+        sent += 1;
+      } catch {
+        failed += 1;
+      }
+      await sleep(DELAY_MS);
+    }
+    appendBroadcastLog({
+      botName,
+      mode: "full",
+      recipients: recipients.length,
+      sent,
+      failed,
+      ok: true,
+      note: "Completed",
+    });
+    return {
+      ok: true,
+      sent,
+      failed,
+      recipients: recipients.length,
+      notice: `Broadcast done: ${sent} sent, ${failed} failed.`,
+    };
+  };
+  const runPanelBroadcast = async ({
+    botIds,
+    message,
+    testMode,
+    testChatId,
+    broadcastButtons,
+    broadcastButtonsPerRow,
+  }) => {
+    const ids = Array.isArray(botIds)
+      ? [...new Set(botIds.map((x) => Number(x || 0)).filter((n) => n > 0))]
+      : [];
+    if (ids.length === 0) return { ok: false, notice: "Select at least one bot." };
+    let totalRecipients = 0;
+    let totalSent = 0;
+    let totalFailed = 0;
+    let okCount = 0;
+    for (const id of ids) {
+      const r = await runPanelBroadcastOne({
+        botId: id,
+        message,
+        testMode,
+        testChatId,
+        broadcastButtons,
+        broadcastButtonsPerRow,
+      });
+      totalRecipients += Number(r.recipients || 0);
+      totalSent += Number(r.sent || 0);
+      totalFailed += Number(r.failed || 0);
+      if (r.ok) okCount += 1;
+    }
+    const mode = testMode ? "test" : "full";
+    return {
+      ok: okCount > 0,
+      notice: `Broadcast (${mode}) across ${ids.length} bot(s): recipients ${totalRecipients}, sent ${totalSent}, failed ${totalFailed}.`,
+    };
   };
   const redirect = (res, to) => {
     res.writeHead(302, { Location: to });
@@ -1649,6 +1960,26 @@ function startAdminPanel(db, instances) {
         redirect(
           res,
           "/panel?view=bots&notice=Bot%20created%20and%20applied%20live."
+        );
+        return;
+      }
+      if (req.method === "POST" && reqUrl.pathname === "/panel/broadcast") {
+        const form = await readForm(req);
+        const botIds = String(form.getAll("bot_ids").join(","))
+          .split(",")
+          .map((s) => Number(String(s).trim()))
+          .filter((n) => !Number.isNaN(n) && n > 0);
+        const result = await runPanelBroadcast({
+          botIds,
+          message: String(form.get("broadcast_message") ?? "").trim(),
+          testMode: Boolean(form.get("test_mode")),
+          testChatId: Number(form.get("test_chat_id") || 0),
+          broadcastButtons: parseBroadcastButtonsFromForm(form),
+          broadcastButtonsPerRow: parseButtonsPerRow(form.get("broadcast_buttons_per_row") ?? 2),
+        });
+        redirect(
+          res,
+          `/panel?view=broadcast&notice=${encodeURIComponent(result.notice)}`
         );
         return;
       }
