@@ -416,6 +416,43 @@ function truncateSingleLine(s, maxLen) {
   return `${t.slice(0, Math.max(0, maxLen - 1))}…`;
 }
 
+function renderMessageLibraryButtonsBlock(buttons, fallbackPerRow) {
+  if (!Array.isArray(buttons) || buttons.length === 0) return "";
+  let html = "";
+  for (let i = 0; i < buttons.length; ) {
+    const size = parseButtonsPerRow(buttons[i]?.row, fallbackPerRow);
+    const row = buttons.slice(i, i + size);
+    html += `<div class="tg-row">${row
+      .map((b) => `<span class="tg-btn">${escapeHtml(String(b.text ?? ""))}</span>`)
+      .join("")}</div>`;
+    i += size;
+  }
+  return html ? `<div class="tg-buttons">${html}</div>` : "";
+}
+
+/** Compact Telegram-style bubble for Message Library list rows (server-rendered). */
+function renderMessageLibraryListPreview(templateRow) {
+  const imageUrl = String(templateRow.image_url ?? "").trim();
+  const okImg = imageUrl && /^https?:\/\//i.test(imageUrl);
+  const body = String(templateRow.body ?? "");
+  const bodyHtml =
+    body.trim() === ""
+      ? `<span class="msg-lib-empty-preview">No message text</span>`
+      : escapeHtml(body).replaceAll("\n", "<br>");
+  const fb = parseButtonsPerRow(templateRow.buttons_per_row ?? 2);
+  const rawBtns = parseMessageTemplateButtons(templateRow.buttons);
+  const buttons = rawBtns.map((b) => ({
+    text: b.text,
+    url: b.url,
+    row: parseButtonsPerRow(b.row, fb),
+  }));
+  const imgTag = okImg
+    ? `<img class="tg-image" alt="" loading="lazy" decoding="async" src="${escapeHtml(imageUrl)}"/>`
+    : "";
+  const btnBlock = renderMessageLibraryButtonsBlock(buttons, fb);
+  return `<div class="telegram-preview msg-lib-preview-skin"><div class="tg-screen msg-lib-tg-screen"><div class="tg-bubble msg-lib-tg-bubble">${imgTag}<div class="tg-text msg-lib-tg-text">${bodyHtml}</div>${btnBlock}</div></div></div>`;
+}
+
 function configToDbRow(cfg) {
   return {
     name: String(cfg.name ?? "").trim(),
@@ -1648,29 +1685,40 @@ function renderPanelPage({
 </div>`;
       }
 
-      // --- List page ---
-      const listRows = templates
+      // --- List page: masonry gallery (same Telegram shell as editor preview) ---
+      const hasCards = templates.length > 0;
+      const cards = templates
         .map((t) => {
           const tid = Number(t.id);
           const publicId = `MSG-${tid}`;
-          const preview = truncateSingleLine(t.body ?? "", 80);
-          const hasImg = String(t.image_url ?? "").trim() ? "Yes" : "—";
-          return `<tr data-searchable="${escapeHtml(
-            `${publicId} ${t.title} ${preview} ${t.image_url || ""}`
-          )}">
-          <td><code class="msg-template-id">${escapeHtml(publicId)}</code></td>
-          <td>${escapeHtml(String(t.title ?? ""))}</td>
-          <td><code>${escapeHtml(preview || "—")}</code></td>
-          <td>${hasImg === "Yes" ? `<span class="pill ok">${hasImg}</span>` : hasImg}</td>
-          <td>${escapeHtml(String(t.updated_at ?? "").slice(0, 19).replace("T", " "))}</td>
-          <td class="actions">
-            <a href="/panel?view=messages&edit=${tid}">Edit</a>
+          const body = String(t.body ?? "");
+          const img = String(t.image_url ?? "").trim();
+          const updatedTxt = String(t.updated_at ?? "")
+            .slice(0, 16)
+            .replace("T", " ");
+          const searchBlob = `${publicId} ${t.title ?? ""} ${truncateSingleLine(body, 200)} ${img}`;
+          const previewHtml = renderMessageLibraryListPreview(t);
+          return `<article class="msg-card" data-searchable="${escapeHtml(searchBlob)}">
+        <div class="msg-card-preview">${previewHtml}</div>
+        <div class="msg-card-bottom">
+          <div class="msg-card-title">${escapeHtml(String(t.title ?? "Untitled"))}</div>
+          <div class="msg-card-meta-row">
+            <code class="msg-template-id">${escapeHtml(publicId)}</code>
+            <span class="msg-card-updated">${escapeHtml(updatedTxt)}</span>
+          </div>
+          <footer class="msg-card-foot">
+            <a class="msg-card-action msg-card-edit" href="/panel?view=messages&edit=${tid}">
+              <span class="material-symbols-outlined">edit</span>Edit
+            </a>
             <form method="POST" action="/panel/message-delete" onsubmit="return confirm('Delete ${escapeHtml(publicId)}?');">
               <input type="hidden" name="id" value="${tid}"/>
-              <button type="submit">Delete</button>
+              <button type="submit" class="msg-card-action msg-card-delete">
+                <span class="material-symbols-outlined">delete</span>Delete
+              </button>
             </form>
-          </td>
-        </tr>`;
+          </footer>
+        </div>
+      </article>`;
         })
         .join("");
       return `<div class="panel">
@@ -1682,16 +1730,11 @@ function renderPanelPage({
     </a>
   </div>
   ${unknownEdit ? `<div class="note" style="margin:0 22px 14px;">No saved message with that id.</div>` : ""}
-  <div class="text-screen">
-    <p>Each saved message has a stable reference ID (<code class="msg-template-id">MSG-…</code>). Use <strong>Add Message</strong> to compose a new one. Limits: title ${MESSAGE_TEMPLATE_TITLE_MAX} chars, body ${MESSAGE_TEMPLATE_BODY_MAX} chars.</p>
-  </div>
-  <table>
-    <thead><tr><th>ID</th><th>Title</th><th>Preview</th><th>Image</th><th>Updated</th><th>Actions</th></tr></thead>
-    <tbody>${
-      listRows ||
-      "<tr><td colspan='6'>No saved messages yet. Click <strong>Add Message</strong> to create one.</td></tr>"
-    }</tbody>
-  </table>
+  ${
+    hasCards
+      ? `<div class="msg-gallery">${cards}</div>`
+      : `<div class="msg-empty">No saved messages yet. Click <strong>Add Message</strong> to create one.</div>`
+  }
 </div>`;
     }
     if (view === "broadcast") {

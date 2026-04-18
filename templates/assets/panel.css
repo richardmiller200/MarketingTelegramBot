@@ -452,6 +452,167 @@ body {
   font-size: 12px;
   color: var(--primary);
 }
+
+/* ---------- Message Library — masonry wall (Pinterest-style) + TG preview -- */
+.msg-gallery {
+  padding: 8px 20px 28px;
+  column-width: 300px;
+  column-gap: 22px;
+}
+@media (max-width: 520px) {
+  .msg-gallery {
+    column-count: 1;
+    column-width: auto;
+  }
+}
+
+.msg-card {
+  break-inside: avoid;
+  margin: 0 0 22px;
+  background: var(--surface-container-low);
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(70, 72, 75, 0.12);
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.msg-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+  border-color: rgba(129, 236, 255, 0.22);
+}
+
+/* Same telegram-preview stack as editor; flush to top of card */
+.msg-card-preview {
+  padding: 0;
+}
+.msg-card .msg-lib-preview-skin {
+  margin: 0;
+  border-radius: 0;
+}
+.msg-card .msg-lib-tg-screen {
+  padding: 14px 16px 16px;
+}
+.msg-card .msg-lib-tg-bubble {
+  max-width: none;
+  margin: 0;
+  padding: 12px 14px;
+}
+.msg-card .msg-lib-tg-bubble .tg-image {
+  max-height: 240px;
+}
+.msg-card .msg-lib-tg-text {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 10;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.msg-card .msg-lib-tg-bubble .tg-buttons {
+  margin-top: 10px;
+}
+.msg-card .msg-lib-tg-bubble .tg-row {
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 6px;
+}
+.msg-card .msg-lib-tg-bubble .tg-btn {
+  padding: 8px 10px;
+  font-size: 11px;
+}
+.msg-card .msg-lib-empty-preview {
+  color: var(--on-surface-variant);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.msg-card-bottom {
+  padding: 0 0 4px;
+  background: var(--surface-container);
+  border-top: 1px solid rgba(70, 72, 75, 0.1);
+}
+.msg-card-title {
+  padding: 12px 16px 4px;
+  font-family: "Manrope", sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--on-surface);
+  line-height: 1.35;
+  word-break: break-word;
+}
+.msg-card-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 16px 10px;
+}
+.msg-card-meta-row .msg-template-id {
+  font-size: 11px;
+}
+.msg-card-updated {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+.msg-card-foot {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 14px;
+}
+.msg-card-foot form {
+  margin: 0;
+  flex: 1;
+  display: flex;
+}
+.msg-card-action {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 12px;
+  font-family: "Manrope", sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-decoration: none;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color .2s, color .2s, filter .2s;
+  width: 100%;
+}
+.msg-card-edit {
+  color: var(--primary);
+  background: rgba(129, 236, 255, 0.08);
+}
+.msg-card-edit:hover {
+  color: var(--primary);
+  background: rgba(129, 236, 255, 0.14);
+  filter: drop-shadow(0 0 6px rgba(129, 236, 255, 0.25));
+}
+.msg-card-delete {
+  color: var(--error);
+  background: rgba(255, 113, 108, 0.08);
+}
+.msg-card-delete:hover {
+  color: var(--error);
+  background: rgba(255, 113, 108, 0.18);
+}
+.msg-empty {
+  padding: 40px 22px 50px;
+  text-align: center;
+  color: var(--on-surface-variant);
+  font-size: 13px;
+}
 .panel h3.panel-subhead {
   margin: 0;
   padding: 18px 22px 0;
