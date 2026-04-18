@@ -1066,7 +1066,7 @@ form.main .telegram-preview h2 {
         <span class="material-symbols-outlined">terminal</span>
         <span>Global Logs</span>
       </a>
-      <a class="menu-link active" href="/panel?view=analytics">
+      <a class="menu-link " href="/panel?view=analytics">
         <span class="material-symbols-outlined">group</span>
         <span>User Analytics</span>
       </a>
@@ -1078,7 +1078,7 @@ form.main .telegram-preview h2 {
         <span class="material-symbols-outlined">campaign</span>
         <span>Broadcast</span>
       </a>
-      <a class="menu-link " href="/panel?view=messages">
+      <a class="menu-link active" href="/panel?view=messages">
         <span class="material-symbols-outlined">note_stack</span>
         <span>Message Library</span>
       </a>
@@ -1111,12 +1111,45 @@ form.main .telegram-preview h2 {
 
   <!-- ======= MAIN CONTENT ======= -->
   <main class="content">
-    <div class="panel"><h2>User Analytics</h2><div class="text-screen">
-      <p>Total tracked members: <strong>12800</strong></p>
-      <p>Average members per bot: <strong>3200.0</strong></p>
-      <p>Enabled bot share: <strong>3/4</strong></p>
-      <p>Polling error count (live session): <strong>3</strong></p>
-    </div></div>
+    <div class="panel">
+  <div class="panel-heading-row">
+    <h2>Edit MSG-1</h2>
+    <a class="muted panel-heading-action" href="/panel?view=messages">Back to list</a>
+  </div>
+  <form class="main message-template-form" method="POST" action="/panel/message-save">
+    <input type="hidden" name="id" value="1"/>
+    <div class="msg-template-id-banner">Reference ID: <code>MSG-1</code></div>
+    <label>Title<input name="title" required maxlength="120" placeholder="e.g. Weekly promo" value="Weekly promo"/></label>
+    <label>Message<textarea name="body" required maxlength="4096" placeholder="Full message text…">Flash sale this weekend!
+
+All tiers 20% off. Ends Sunday midnight UTC.</textarea></label>
+    <div class="row"><label>Image URL (optional)<input name="image_url" maxlength="2000" placeholder="https://…" value="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=900&amp;h=420&amp;fit=crop"/></label><label>Buttons Per Row
+      <select name="buttons_per_row">
+        <option value="1" >1</option>
+        <option value="2" selected>2</option>
+        <option value="3" >3</option>
+      </select>
+    </label></div>
+    <div class="row button-row msg-button-row" data-msg-button-row="1" ><label>Button 1 Text<input name="msg_button_1_text" placeholder="Optional" value="Shop now"/></label><label>Button 1 URL<input name="msg_button_1_url" placeholder="https://..." value="https://example.com/shop"/></label><label>Row Size<select name="msg_button_1_row"><option value="1" selected>1/1</option><option value="2" >1/2</option><option value="3" >1/3</option></select></label><div></div></div><div class="row button-row msg-button-row" data-msg-button-row="2" ><label>Button 2 Text<input name="msg_button_2_text" placeholder="Optional" value="View tiers"/></label><label>Button 2 URL<input name="msg_button_2_url" placeholder="https://..." value="https://example.com/tiers"/></label><label>Row Size<select name="msg_button_2_row"><option value="1" >1/1</option><option value="2" selected>1/2</option><option value="3" >1/3</option></select></label><button type="button" class="muted msg-remove-btn" data-remove-msg-button="2">Remove</button></div><div class="row button-row msg-button-row" data-msg-button-row="3" ><label>Button 3 Text<input name="msg_button_3_text" placeholder="Optional" value="Read FAQ"/></label><label>Button 3 URL<input name="msg_button_3_url" placeholder="https://..." value="https://example.com/faq"/></label><label>Row Size<select name="msg_button_3_row"><option value="1" >1/1</option><option value="2" selected>1/2</option><option value="3" >1/3</option></select></label><button type="button" class="muted msg-remove-btn" data-remove-msg-button="3">Remove</button></div><div class="row button-row msg-button-row" data-msg-button-row="4" style='display:none'><label>Button 4 Text<input name="msg_button_4_text" placeholder="Optional" value=""/></label><label>Button 4 URL<input name="msg_button_4_url" placeholder="https://..." value=""/></label><label>Row Size<select name="msg_button_4_row"><option value="1" >1/1</option><option value="2" selected>1/2</option><option value="3" >1/3</option></select></label><button type="button" class="muted msg-remove-btn" data-remove-msg-button="4">Remove</button></div><div class="row button-row msg-button-row" data-msg-button-row="5" style='display:none'><label>Button 5 Text<input name="msg_button_5_text" placeholder="Optional" value=""/></label><label>Button 5 URL<input name="msg_button_5_url" placeholder="https://..." value=""/></label><label>Row Size<select name="msg_button_5_row"><option value="1" >1/1</option><option value="2" selected>1/2</option><option value="3" >1/3</option></select></label><button type="button" class="muted msg-remove-btn" data-remove-msg-button="5">Remove</button></div>
+    <div class="submit"><button type="button" class="muted" data-add-msg-button>Add Button</button></div>
+    <div class="telegram-preview" data-preview-box>
+      <h2>Message Preview</h2>
+      <div class="tg-screen">
+        <div class="tg-bubble">
+          <img class="tg-image" data-message-template-preview-image alt="" src="https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=900&amp;h=420&amp;fit=crop"/>
+          <div class="tg-text" data-message-template-preview-text>Flash sale this weekend!
+
+All tiers 20% off. Ends Sunday midnight UTC.</div>
+          <div class="tg-buttons" data-message-template-preview-buttons><div class="tg-row"><button type="button" class="tg-btn">Shop now</button></div><div class="tg-row"><button type="button" class="tg-btn">View tiers</button><button type="button" class="tg-btn">Read FAQ</button></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="submit">
+      <button class="primary" type="submit">Update Message</button>
+      <a class="muted" href="/panel?view=messages">Cancel</a>
+    </div>
+  </form>
+</div>
     {{notice_block}}
   </main>
 

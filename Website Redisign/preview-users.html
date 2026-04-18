@@ -1066,11 +1066,11 @@ form.main .telegram-preview h2 {
         <span class="material-symbols-outlined">terminal</span>
         <span>Global Logs</span>
       </a>
-      <a class="menu-link active" href="/panel?view=analytics">
+      <a class="menu-link " href="/panel?view=analytics">
         <span class="material-symbols-outlined">group</span>
         <span>User Analytics</span>
       </a>
-      <a class="menu-link " href="/panel?view=users">
+      <a class="menu-link active" href="/panel?view=users">
         <span class="material-symbols-outlined">groups</span>
         <span>Interacted Users</span>
       </a>
@@ -1111,12 +1111,16 @@ form.main .telegram-preview h2 {
 
   <!-- ======= MAIN CONTENT ======= -->
   <main class="content">
-    <div class="panel"><h2>User Analytics</h2><div class="text-screen">
-      <p>Total tracked members: <strong>12800</strong></p>
-      <p>Average members per bot: <strong>3200.0</strong></p>
-      <p>Enabled bot share: <strong>3/4</strong></p>
-      <p>Polling error count (live session): <strong>3</strong></p>
-    </div></div>
+    <div class="panel"><h2>Interacted Users</h2>
+      <div class="text-screen">
+        <p>Total interactions recorded: <strong>3,842</strong></p>
+        <p>Unique user IDs across all bots: <strong>2,914</strong></p>
+      </div>
+      <table>
+        <thead><tr><th>Bot</th><th>User Count</th><th>Sample User IDs</th></tr></thead>
+        <tbody><tr><td>Aegis Guardian</td><td>1349</td><td>111222333, 444555666, 777888999</td></tr><tr><td>Store Manager</td><td>993</td><td>111222333, 444555666, 777888999</td></tr><tr><td>Market Pulse</td><td>291</td><td>111222333, 444555666, 777888999</td></tr><tr><td>News Wire</td><td>1460</td><td>111222333, 444555666, 777888999</td></tr></tbody>
+      </table>
+    </div>
     {{notice_block}}
   </main>
 

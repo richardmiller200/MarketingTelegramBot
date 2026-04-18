@@ -54,6 +54,10 @@
         <span class="material-symbols-outlined">campaign</span>
         <span>Broadcast</span>
       </a>
+      <a class="menu-link {{messages_active}}" href="/panel?view=messages">
+        <span class="material-symbols-outlined">note_stack</span>
+        <span>Message Library</span>
+      </a>
       <a class="menu-link menu-cta {{add_active}}" href="/panel?view=add">
         <span class="material-symbols-outlined">add_circle</span>
         <span>Deploy New Bot</span>
@@ -115,6 +119,7 @@
       const form = document.querySelector("form.main[action='/panel/save']");
       const previewText = form?.querySelector("[data-preview-text]");
       const previewButtons = form?.querySelector("[data-preview-buttons]");
+      const previewImage = form?.querySelector("[data-preview-image]");
       if (form && previewText && previewButtons) {
         const addSaveButton = form.querySelector("[data-add-save-button]");
         const saveButtonRows = [...form.querySelectorAll("[data-save-button-row]")];
@@ -158,9 +163,26 @@
           if (Number.isNaN(x)) return fallback;
           return Math.max(1, Math.min(3, Math.floor(x)));
         };
+        if (previewImage) {
+          previewImage.addEventListener("error", () => {
+            previewImage.hidden = true;
+            previewImage.removeAttribute("src");
+          });
+        }
         const renderPreview = () => {
           const msg = form.querySelector("textarea[name='welcome_message']")?.value?.trim() || "";
           previewText.innerHTML = esc(msg || "Welcome message will appear here...").replaceAll("\n", "<br>");
+
+          if (previewImage) {
+            const imgUrl = form.querySelector("input[name='welcome_image']")?.value?.trim() || "";
+            if (imgUrl && /^https?:\/\//i.test(imgUrl)) {
+              if (previewImage.getAttribute("src") !== imgUrl) previewImage.src = imgUrl;
+              previewImage.hidden = false;
+            } else {
+              previewImage.removeAttribute("src");
+              previewImage.hidden = true;
+            }
+          }
 
           const fallback = toRowSize(
             form.querySelector("select[name='buttons_per_row']")?.value ?? 2,
@@ -203,6 +225,7 @@
       const broadcastForm = document.querySelector("form.main[action='/panel/broadcast']");
       const bPreviewText = broadcastForm?.querySelector("[data-broadcast-preview-text]");
       const bPreviewButtons = broadcastForm?.querySelector("[data-broadcast-preview-buttons]");
+      const bPreviewImage = broadcastForm?.querySelector("[data-broadcast-preview-image]");
       if (broadcastForm && bPreviewText && bPreviewButtons) {
         const addButton = broadcastForm.querySelector("[data-add-broadcast-button]");
         const buttonRows = [...broadcastForm.querySelectorAll("[data-broadcast-button-row]")];
@@ -246,9 +269,27 @@
           if (Number.isNaN(x)) return fallback;
           return Math.max(1, Math.min(3, Math.floor(x)));
         };
+        if (bPreviewImage) {
+          bPreviewImage.addEventListener("error", () => {
+            bPreviewImage.hidden = true;
+            bPreviewImage.removeAttribute("src");
+          });
+        }
         const renderBroadcastPreview = () => {
           const msg = broadcastForm.querySelector("textarea[name='broadcast_message']")?.value?.trim() || "";
           bPreviewText.innerHTML = esc(msg || "Broadcast message will appear here...").replaceAll("\n", "<br>");
+
+          if (bPreviewImage) {
+            const imgUrl = broadcastForm.querySelector("input[name='broadcast_image']")?.value?.trim() || "";
+            if (imgUrl && /^https?:\/\//i.test(imgUrl)) {
+              if (bPreviewImage.getAttribute("src") !== imgUrl) bPreviewImage.src = imgUrl;
+              bPreviewImage.hidden = false;
+            } else {
+              bPreviewImage.removeAttribute("src");
+              bPreviewImage.hidden = true;
+            }
+          }
+
           const fallback = toRowSize(
             broadcastForm.querySelector("select[name='broadcast_buttons_per_row']")?.value ?? 2,
             2
@@ -282,6 +323,107 @@
         broadcastForm.addEventListener("change", renderBroadcastPreview);
         toggleAddButton();
         renderBroadcastPreview();
+      }
+
+      const messageTplForm = document.querySelector("form.main[action='/panel/message-save']");
+      const mtPreviewText = messageTplForm?.querySelector("[data-message-template-preview-text]");
+      const mtPreviewButtons = messageTplForm?.querySelector("[data-message-template-preview-buttons]");
+      const mtPreviewImage = messageTplForm?.querySelector("[data-message-template-preview-image]");
+      if (messageTplForm && mtPreviewText && mtPreviewButtons) {
+        const esc = (s) =>
+          String(s ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#39;");
+        const toRowSize = (n, fallback = 2) => {
+          const x = Number(n);
+          if (Number.isNaN(x)) return fallback;
+          return Math.max(1, Math.min(3, Math.floor(x)));
+        };
+
+        const addMtButton = messageTplForm.querySelector("[data-add-msg-button]");
+        const mtButtonRows = [...messageTplForm.querySelectorAll("[data-msg-button-row]")];
+        const shownMtCount = () =>
+          mtButtonRows.filter((r) => getComputedStyle(r).display !== "none").length;
+        const toggleAddMtButton = () => {
+          if (!addMtButton) return;
+          addMtButton.style.display = shownMtCount() >= mtButtonRows.length ? "none" : "";
+        };
+        addMtButton?.addEventListener("click", () => {
+          const next = mtButtonRows.find((r) => getComputedStyle(r).display === "none");
+          if (next) next.style.display = "";
+          toggleAddMtButton();
+        });
+        [...messageTplForm.querySelectorAll("[data-remove-msg-button]")].forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const idx = Number(btn.getAttribute("data-remove-msg-button") || 0);
+            const row = messageTplForm.querySelector(`[data-msg-button-row='${idx}']`);
+            if (!row) return;
+            row.querySelectorAll("input").forEach((el) => { el.value = ""; });
+            row.querySelectorAll("select").forEach((el) => { el.value = "2"; });
+            row.style.display = "none";
+            toggleAddMtButton();
+            renderMessageTemplatePreview();
+          });
+        });
+
+        if (mtPreviewImage) {
+          mtPreviewImage.addEventListener("error", () => {
+            mtPreviewImage.hidden = true;
+            mtPreviewImage.removeAttribute("src");
+          });
+        }
+        const renderMessageTemplatePreview = () => {
+          const msg = messageTplForm.querySelector("textarea[name='body']")?.value?.trim() || "";
+          mtPreviewText.innerHTML = esc(msg || "Message will appear here…").replaceAll("\n", "<br>");
+
+          if (mtPreviewImage) {
+            const imgUrl = messageTplForm.querySelector("input[name='image_url']")?.value?.trim() || "";
+            if (imgUrl && /^https?:\/\//i.test(imgUrl)) {
+              if (mtPreviewImage.getAttribute("src") !== imgUrl) mtPreviewImage.src = imgUrl;
+              mtPreviewImage.hidden = false;
+            } else {
+              mtPreviewImage.removeAttribute("src");
+              mtPreviewImage.hidden = true;
+            }
+          }
+
+          const fallback = toRowSize(
+            messageTplForm.querySelector("select[name='buttons_per_row']")?.value ?? 2,
+            2
+          );
+          const buttons = [];
+          for (let i = 1; i <= 5; i += 1) {
+            const text = messageTplForm.querySelector(`input[name='msg_button_${i}_text']`)?.value?.trim() || "";
+            const url = messageTplForm.querySelector(`input[name='msg_button_${i}_url']`)?.value?.trim() || "";
+            const row = toRowSize(
+              messageTplForm.querySelector(`select[name='msg_button_${i}_row']`)?.value ?? fallback,
+              fallback
+            );
+            if (text && /^https?:\/\//i.test(url)) buttons.push({ text, row });
+          }
+          if (buttons.length === 0) {
+            mtPreviewButtons.innerHTML = "";
+            return;
+          }
+          let html = "";
+          for (let i = 0; i < buttons.length; ) {
+            const size = toRowSize(buttons[i].row, fallback);
+            const row = buttons.slice(i, i + size);
+            html += `<div class="tg-row">${row
+              .map((b) => `<button type="button" class="tg-btn">${esc(b.text)}</button>`)
+              .join("")}</div>`;
+            i += size;
+          }
+          mtPreviewButtons.innerHTML = html;
+        };
+
+        messageTplForm.addEventListener("input", renderMessageTemplatePreview);
+        messageTplForm.addEventListener("change", renderMessageTemplatePreview);
+        toggleAddMtButton();
+        renderMessageTemplatePreview();
       }
     })();
   </script>

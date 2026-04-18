@@ -316,7 +316,104 @@ function openConfigDb() {
       db.exec("ALTER TABLE bots ADD COLUMN button_layout TEXT NOT NULL DEFAULT ''");
     }
   } catch {}
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS message_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL DEFAULT '',
+      body TEXT NOT NULL DEFAULT '',
+      image_url TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `);
+  try {
+    const cols = db.prepare("PRAGMA table_info(message_templates)").all();
+    if (!cols.some((c) => c.name === "buttons")) {
+      db.exec("ALTER TABLE message_templates ADD COLUMN buttons TEXT NOT NULL DEFAULT '[]'");
+    }
+    if (!cols.some((c) => c.name === "buttons_per_row")) {
+      db.exec("ALTER TABLE message_templates ADD COLUMN buttons_per_row INTEGER NOT NULL DEFAULT 2");
+    }
+  } catch {}
   return db;
+}
+
+const MESSAGE_TEMPLATE_TITLE_MAX = 120;
+const MESSAGE_TEMPLATE_BODY_MAX = 4096;
+const MESSAGE_TEMPLATE_IMAGE_MAX = 2000;
+
+function loadMessageTemplates(db) {
+  try {
+    return db
+      .prepare("SELECT * FROM message_templates ORDER BY updated_at DESC, id DESC")
+      .all();
+  } catch {
+    return [];
+  }
+}
+
+function sanitizeMessageTemplateFields(raw) {
+  const title = String(raw.title ?? "")
+    .replace(/\0/g, "")
+    .trim()
+    .slice(0, MESSAGE_TEMPLATE_TITLE_MAX);
+  const body = String(raw.body ?? "")
+    .replace(/\0/g, "")
+    .trim()
+    .slice(0, MESSAGE_TEMPLATE_BODY_MAX);
+  let imageUrl = String(raw.image_url ?? "")
+    .replace(/\0/g, "")
+    .trim()
+    .slice(0, MESSAGE_TEMPLATE_IMAGE_MAX);
+  if (imageUrl && !/^https?:\/\//i.test(imageUrl)) {
+    imageUrl = "";
+  }
+  const buttonsPerRow = parseButtonsPerRow(raw.buttons_per_row ?? 2);
+  const buttons = Array.isArray(raw.buttons)
+    ? raw.buttons
+        .map((b) => ({
+          text: String(b?.text ?? "").trim().slice(0, 64),
+          url: String(b?.url ?? "").trim().slice(0, 2000),
+          row: parseButtonsPerRow(b?.row ?? buttonsPerRow, buttonsPerRow),
+        }))
+        .filter((b) => b.text && /^https?:\/\//i.test(b.url))
+        .slice(0, 5)
+    : [];
+  return { title, body, imageUrl, buttons, buttonsPerRow };
+}
+
+function parseMessageTemplateButtonsFromForm(form) {
+  const buttons = [];
+  const fallbackPerRow = parseButtonsPerRow(form.get("buttons_per_row") ?? 2);
+  for (let i = 1; i <= 5; i += 1) {
+    const text = String(form.get(`msg_button_${i}_text`) ?? "").trim();
+    const url = String(form.get(`msg_button_${i}_url`) ?? "").trim();
+    const row = parseButtonsPerRow(form.get(`msg_button_${i}_row`) ?? "", fallbackPerRow);
+    if (text && /^https?:\/\//i.test(url)) buttons.push({ text, url, row });
+  }
+  return buttons;
+}
+
+function parseMessageTemplateButtons(raw) {
+  try {
+    const parsed = JSON.parse(String(raw ?? "[]"));
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((b) => ({
+        text: String(b?.text ?? ""),
+        url: String(b?.url ?? ""),
+        row: Number(b?.row ?? 2),
+      }))
+      .filter((b) => b.text && /^https?:\/\//i.test(b.url));
+  } catch {
+    return [];
+  }
+}
+
+function truncateSingleLine(s, maxLen) {
+  const t = String(s ?? "").replace(/\s+/g, " ").trim();
+  if (t.length <= maxLen) return t;
+  return `${t.slice(0, Math.max(0, maxLen - 1))}…`;
 }
 
 function configToDbRow(cfg) {
@@ -1296,8 +1393,11 @@ function renderPanelPage({
   botRows,
   statusRows,
   editingId = 0,
+  templateEditId = 0,
+  templateNew = false,
   notice = "",
   view = "dashboard",
+  db,
 }) {
   const rowsBySlug = new Map(statusRows.map((r) => [r.slug, r]));
   const totalBots = botRows.length;
@@ -1457,6 +1557,143 @@ function renderPanelPage({
         </table>
       </div>`;
     }
+    if (view === "messages") {
+      const templates = loadMessageTemplates(db);
+      const editId = Number(templateEditId || 0);
+      const editingTpl =
+        editId > 0 ? templates.find((t) => Number(t.id) === editId) || null : null;
+      const unknownEdit = editId > 0 && !editingTpl && !templateNew;
+      const showCompose = Boolean(templateNew || (editId > 0 && editingTpl));
+
+      // --- Editor page (dedicated view for Add / Edit) ---
+      if (showCompose) {
+        const formTitle = escapeHtml(editingTpl?.title ?? "");
+        const formBody = escapeHtml(editingTpl?.body ?? "");
+        const formImage = escapeHtml(editingTpl?.image_url ?? "");
+        const formId = editingTpl ? Number(editingTpl.id) : 0;
+        const composePublicId =
+          editingTpl != null ? `MSG-${Number(editingTpl.id)}` : "";
+        const composeHeading = editingTpl
+          ? `Edit ${escapeHtml(composePublicId)}`
+          : "New Saved Message";
+        const currentBtns = editingTpl
+          ? parseMessageTemplateButtons(editingTpl.buttons)
+          : [];
+        const currentBpr = parseButtonsPerRow(editingTpl?.buttons_per_row ?? 2);
+        const mtButtonAt = (i, key) => escapeHtml(currentBtns[i - 1]?.[key] ?? "");
+        const mtButtonRowAt = (i) =>
+          parseButtonsPerRow(currentBtns[i - 1]?.row ?? currentBpr, currentBpr);
+        const mtHasButtonAt = (i) =>
+          Boolean(currentBtns[i - 1]?.text || currentBtns[i - 1]?.url);
+        const previewImageAttrs =
+          editingTpl?.image_url && /^https?:\/\//i.test(String(editingTpl.image_url))
+            ? `src="${escapeHtml(String(editingTpl.image_url))}"`
+            : "hidden";
+        const mtButtonRowsHtml = [1, 2, 3, 4, 5]
+          .map(
+            (i) =>
+              `<div class="row button-row msg-button-row" data-msg-button-row="${i}" ${
+                i === 1 || mtHasButtonAt(i) ? "" : "style='display:none'"
+              }><label>Button ${i} Text<input name="msg_button_${i}_text" placeholder="Optional" value="${mtButtonAt(i, "text")}"/></label><label>Button ${i} URL<input name="msg_button_${i}_url" placeholder="https://..." value="${mtButtonAt(i, "url")}"/></label><label>Row Size<select name="msg_button_${i}_row"><option value="1" ${
+                mtButtonRowAt(i) === 1 ? "selected" : ""
+              }>1/1</option><option value="2" ${
+                mtButtonRowAt(i) === 2 ? "selected" : ""
+              }>1/2</option><option value="3" ${
+                mtButtonRowAt(i) === 3 ? "selected" : ""
+              }>1/3</option></select></label>${
+                i === 1
+                  ? "<div></div>"
+                  : `<button type="button" class="muted msg-remove-btn" data-remove-msg-button="${i}">Remove</button>`
+              }</div>`
+          )
+          .join("");
+        return `<div class="panel">
+  <div class="panel-heading-row">
+    <h2>${composeHeading}</h2>
+    <a class="muted panel-heading-action" href="/panel?view=messages">Back to list</a>
+  </div>
+  <form class="main message-template-form" method="POST" action="/panel/message-save">
+    <input type="hidden" name="id" value="${formId}"/>
+    ${
+      editingTpl
+        ? `<div class="msg-template-id-banner">Reference ID: <code>${escapeHtml(composePublicId)}</code></div>`
+        : ""
+    }
+    <label>Title<input name="title" required maxlength="${MESSAGE_TEMPLATE_TITLE_MAX}" placeholder="e.g. Weekly promo" value="${formTitle}"/></label>
+    <label>Message<textarea name="body" required maxlength="${MESSAGE_TEMPLATE_BODY_MAX}" placeholder="Full message text…">${formBody}</textarea></label>
+    <div class="row"><label>Image URL (optional)<input name="image_url" maxlength="${MESSAGE_TEMPLATE_IMAGE_MAX}" placeholder="https://…" value="${formImage}"/></label><label>Buttons Per Row
+      <select name="buttons_per_row">
+        <option value="1" ${currentBpr === 1 ? "selected" : ""}>1</option>
+        <option value="2" ${currentBpr === 2 ? "selected" : ""}>2</option>
+        <option value="3" ${currentBpr === 3 ? "selected" : ""}>3</option>
+      </select>
+    </label></div>
+    ${mtButtonRowsHtml}
+    <div class="submit"><button type="button" class="muted" data-add-msg-button>Add Button</button></div>
+    <div class="telegram-preview" data-preview-box>
+      <h2>Message Preview</h2>
+      <div class="tg-screen">
+        <div class="tg-bubble">
+          <img class="tg-image" data-message-template-preview-image alt="" ${previewImageAttrs}/>
+          <div class="tg-text" data-message-template-preview-text>${formBody || "Message will appear here…"}</div>
+          <div class="tg-buttons" data-message-template-preview-buttons></div>
+        </div>
+      </div>
+    </div>
+    <div class="submit">
+      <button class="primary" type="submit">${editingTpl ? "Update Message" : "Save Message"}</button>
+      <a class="muted" href="/panel?view=messages">Cancel</a>
+    </div>
+  </form>
+</div>`;
+      }
+
+      // --- List page ---
+      const listRows = templates
+        .map((t) => {
+          const tid = Number(t.id);
+          const publicId = `MSG-${tid}`;
+          const preview = truncateSingleLine(t.body ?? "", 80);
+          const hasImg = String(t.image_url ?? "").trim() ? "Yes" : "—";
+          return `<tr data-searchable="${escapeHtml(
+            `${publicId} ${t.title} ${preview} ${t.image_url || ""}`
+          )}">
+          <td><code class="msg-template-id">${escapeHtml(publicId)}</code></td>
+          <td>${escapeHtml(String(t.title ?? ""))}</td>
+          <td><code>${escapeHtml(preview || "—")}</code></td>
+          <td>${hasImg === "Yes" ? `<span class="pill ok">${hasImg}</span>` : hasImg}</td>
+          <td>${escapeHtml(String(t.updated_at ?? "").slice(0, 19).replace("T", " "))}</td>
+          <td class="actions">
+            <a href="/panel?view=messages&edit=${tid}">Edit</a>
+            <form method="POST" action="/panel/message-delete" onsubmit="return confirm('Delete ${escapeHtml(publicId)}?');">
+              <input type="hidden" name="id" value="${tid}"/>
+              <button type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>`;
+        })
+        .join("");
+      return `<div class="panel">
+  <div class="panel-heading-row">
+    <h2>Message Library</h2>
+    <a class="muted panel-heading-action panel-heading-cta" href="/panel?view=messages&new=1">
+      <span class="material-symbols-outlined">add</span>
+      Add Message
+    </a>
+  </div>
+  ${unknownEdit ? `<div class="note" style="margin:0 22px 14px;">No saved message with that id.</div>` : ""}
+  <div class="text-screen">
+    <p>Each saved message has a stable reference ID (<code class="msg-template-id">MSG-…</code>). Use <strong>Add Message</strong> to compose a new one. Limits: title ${MESSAGE_TEMPLATE_TITLE_MAX} chars, body ${MESSAGE_TEMPLATE_BODY_MAX} chars.</p>
+  </div>
+  <table>
+    <thead><tr><th>ID</th><th>Title</th><th>Preview</th><th>Image</th><th>Updated</th><th>Actions</th></tr></thead>
+    <tbody>${
+      listRows ||
+      "<tr><td colspan='6'>No saved messages yet. Click <strong>Add Message</strong> to create one.</td></tr>"
+    }</tbody>
+  </table>
+</div>`;
+    }
     if (view === "broadcast") {
       const broadcastButtonRowsHtml = [1, 2, 3, 4, 5]
         .map(
@@ -1479,19 +1716,20 @@ function renderPanelPage({
 </label><label>Test Chat ID (optional)<input name="test_chat_id" placeholder="123456789"/></label></div>
 <div class="hint">Hold Cmd/Ctrl to select multiple bots.</div>
 <label>Message<textarea name="broadcast_message" required placeholder="Type broadcast message..."></textarea></label>
-<div class="row"><label>Buttons Per Row (fallback)
+<div class="row"><label>Broadcast Image URL (optional)<input name="broadcast_image" placeholder="https://..."/></label><label>Buttons Per Row (fallback)
   <select name="broadcast_buttons_per_row">
     <option value="1">1</option>
     <option value="2" selected>2</option>
     <option value="3">3</option>
   </select>
-</label><div></div></div>
+</label></div>
 ${broadcastButtonRowsHtml}
 <div class="submit"><button type="button" class="muted" data-add-broadcast-button>Add Button</button></div>
 <div class="telegram-preview" data-preview-box>
   <h2>Broadcast Preview</h2>
   <div class="tg-screen">
     <div class="tg-bubble">
+      <img class="tg-image" data-broadcast-preview-image alt="" hidden/>
       <div class="tg-text" data-broadcast-preview-text>Broadcast message will appear here...</div>
       <div class="tg-buttons" data-broadcast-preview-buttons></div>
     </div>
@@ -1531,6 +1769,11 @@ ${broadcastButtonRowsHtml}
   <h2>Message Preview</h2>
   <div class="tg-screen">
     <div class="tg-bubble">
+      <img class="tg-image" data-preview-image alt="" ${
+        current?.welcome_image
+          ? `src="${escapeHtml(current.welcome_image)}"`
+          : "hidden"
+      }/>
       <div class="tg-text" data-preview-text>${escapeHtml(current?.welcome_message ?? "") || "Welcome message will appear here..."}</div>
       <div class="tg-buttons" data-preview-buttons></div>
     </div>
@@ -1569,6 +1812,7 @@ ${broadcastButtonRowsHtml}
     .replace("{{analytics_active}}", view === "analytics" ? "active" : "")
     .replace("{{users_active}}", view === "users" ? "active" : "")
     .replace("{{broadcast_active}}", view === "broadcast" ? "active" : "")
+    .replace("{{messages_active}}", view === "messages" ? "active" : "")
     .replace("{{add_active}}", view === "add" ? "active" : "")
     .replace("{{content}}", content)
     .replace(
@@ -1651,6 +1895,7 @@ function startAdminPanel(db, instances) {
   const runPanelBroadcastOne = async ({
     botId,
     message,
+    image,
     testMode,
     testChatId,
     broadcastButtons,
@@ -1684,6 +1929,16 @@ function startAdminPanel(db, instances) {
     const sendOptions = replyMarkup
       ? { disable_web_page_preview: false, reply_markup: replyMarkup }
       : { disable_web_page_preview: false };
+    const photoUrl = String(image ?? "").trim();
+    const sendBroadcast = (target) => {
+      if (photoUrl && /^https?:\/\//i.test(photoUrl)) {
+        return instance.bot.sendPhoto(target, photoUrl, {
+          caption: text,
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+        });
+      }
+      return instance.bot.sendMessage(target, text, sendOptions);
+    };
     if (testMode) {
       const target = Number(testChatId || 0);
       if (!target) {
@@ -1696,7 +1951,7 @@ function startAdminPanel(db, instances) {
         return { ok: false, sent: 0, failed: 0, recipients: 0, notice: "Test mode needs a valid Test Chat ID." };
       }
       try {
-        await instance.bot.sendMessage(target, text, sendOptions);
+        await sendBroadcast(target);
         appendBroadcastLog({
           botName,
           mode: "test",
@@ -1742,7 +1997,7 @@ function startAdminPanel(db, instances) {
     let failed = 0;
     for (const uid of recipients) {
       try {
-        await instance.bot.sendMessage(uid, text, sendOptions);
+        await sendBroadcast(uid);
         sent += 1;
       } catch {
         failed += 1;
@@ -1769,6 +2024,7 @@ function startAdminPanel(db, instances) {
   const runPanelBroadcast = async ({
     botIds,
     message,
+    image,
     testMode,
     testChatId,
     broadcastButtons,
@@ -1786,6 +2042,7 @@ function startAdminPanel(db, instances) {
       const r = await runPanelBroadcastOne({
         botId: id,
         message,
+        image,
         testMode,
         testChatId,
         broadcastButtons,
@@ -1825,6 +2082,17 @@ function startAdminPanel(db, instances) {
     WHERE id=@id
   `);
   const deleteStmt = db.prepare("DELETE FROM bots WHERE id = ?");
+  const messageInsertStmt = db.prepare(`
+    INSERT INTO message_templates (title, body, image_url, buttons, buttons_per_row, created_at, updated_at)
+    VALUES (@title, @body, @image_url, @buttons, @buttons_per_row, @created_at, @updated_at)
+  `);
+  const messageUpdateStmt = db.prepare(`
+    UPDATE message_templates
+    SET title=@title, body=@body, image_url=@image_url, buttons=@buttons,
+        buttons_per_row=@buttons_per_row, updated_at=@updated_at
+    WHERE id=@id
+  `);
+  const messageDeleteStmt = db.prepare("DELETE FROM message_templates WHERE id = ?");
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -1911,14 +2179,20 @@ function startAdminPanel(db, instances) {
         const edit = Number(reqUrl.searchParams.get("edit") || 0);
         const notice = reqUrl.searchParams.get("notice") || "";
         const view = String(reqUrl.searchParams.get("view") || "dashboard");
+        const editingBotId = view === "add" ? edit : 0;
+        const templateNew = view === "messages" && String(reqUrl.searchParams.get("new") || "") === "1";
+        const templateEditId = view === "messages" && !templateNew ? edit : 0;
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end(
           renderPanelPage({
             botRows: rows,
             statusRows: live,
-            editingId: edit,
+            editingId: editingBotId,
+            templateEditId,
+            templateNew,
             notice,
             view,
+            db,
           })
         );
         return;
@@ -1972,6 +2246,7 @@ function startAdminPanel(db, instances) {
         const result = await runPanelBroadcast({
           botIds,
           message: String(form.get("broadcast_message") ?? "").trim(),
+          image: String(form.get("broadcast_image") ?? "").trim(),
           testMode: Boolean(form.get("test_mode")),
           testChatId: Number(form.get("test_chat_id") || 0),
           broadcastButtons: parseBroadcastButtonsFromForm(form),
@@ -1993,6 +2268,79 @@ function startAdminPanel(db, instances) {
         redirect(
           res,
           "/panel?view=bots&notice=Bot%20deleted%20and%20stopped%20live."
+        );
+        return;
+      }
+      if (req.method === "POST" && reqUrl.pathname === "/panel/message-save") {
+        const form = await readForm(req);
+        const id = Number(form.get("id") || 0);
+        const rawButtons = parseMessageTemplateButtonsFromForm(form);
+        const { title, body, imageUrl, buttons, buttonsPerRow } =
+          sanitizeMessageTemplateFields({
+            title: form.get("title"),
+            body: form.get("body"),
+            image_url: form.get("image_url"),
+            buttons: rawButtons,
+            buttons_per_row: form.get("buttons_per_row") ?? 2,
+          });
+        if (!title || !body) {
+          redirect(
+            res,
+            `/panel?view=messages&notice=${encodeURIComponent("Title and message are required.")}`
+          );
+          return;
+        }
+        const buttonsJson = JSON.stringify(buttons);
+        const now = new Date().toISOString();
+        if (id > 0) {
+          const row = db.prepare("SELECT id FROM message_templates WHERE id = ?").get(id);
+          if (!row) {
+            redirect(
+              res,
+              `/panel?view=messages&notice=${encodeURIComponent("Saved message not found.")}`
+            );
+            return;
+          }
+          messageUpdateStmt.run({
+            id,
+            title,
+            body,
+            image_url: imageUrl,
+            buttons: buttonsJson,
+            buttons_per_row: buttonsPerRow,
+            updated_at: now,
+          });
+          redirect(
+            res,
+            `/panel?view=messages&edit=${id}&notice=${encodeURIComponent("Message updated.")}`
+          );
+          return;
+        }
+        const ins = messageInsertStmt.run({
+          title,
+          body,
+          image_url: imageUrl,
+          buttons: buttonsJson,
+          buttons_per_row: buttonsPerRow,
+          created_at: now,
+          updated_at: now,
+        });
+        const newId = Number(ins.lastInsertRowid || 0);
+        redirect(
+          res,
+          newId > 0
+            ? `/panel?view=messages&edit=${newId}&notice=${encodeURIComponent("Message saved.")}`
+            : `/panel?view=messages&notice=${encodeURIComponent("Message saved.")}`
+        );
+        return;
+      }
+      if (req.method === "POST" && reqUrl.pathname === "/panel/message-delete") {
+        const form = await readForm(req);
+        const id = Number(form.get("id") || 0);
+        if (id > 0) messageDeleteStmt.run(id);
+        redirect(
+          res,
+          `/panel?view=messages&notice=${encodeURIComponent("Message deleted.")}`
         );
         return;
       }

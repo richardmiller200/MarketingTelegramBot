@@ -402,6 +402,79 @@ body {
   letter-spacing: -0.01em;
   background: var(--surface-container-high); /* tonal divider, not a border */
 }
+.panel-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 18px 22px;
+  background: var(--surface-container-high);
+}
+.panel-heading-row h2 {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+.panel-heading-action {
+  flex-shrink: 0;
+}
+.panel-heading-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-family: "Manrope", sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--primary);
+  background: rgba(129, 236, 255, 0.08);
+  border-radius: 10px;
+  transition: background-color .2s, color .2s, filter .2s;
+}
+.panel-heading-cta:hover {
+  color: var(--primary);
+  background: rgba(129, 236, 255, 0.14);
+  filter: drop-shadow(0 0 6px rgba(129, 236, 255, 0.25));
+}
+.panel-heading-cta .material-symbols-outlined {
+  font-size: 16px;
+  font-variation-settings: 'wght' 700;
+}
+.msg-template-id {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary);
+}
+.msg-template-id-banner {
+  margin: -4px 0 4px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  background: var(--surface-container-lowest);
+  border-radius: 10px;
+  border: 1px solid rgba(70, 72, 75, 0.12);
+}
+.msg-template-id-banner code {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--primary);
+}
+.panel h3.panel-subhead {
+  margin: 0;
+  padding: 18px 22px 0;
+  font-family: "Manrope", sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
 
 /* ---------- Tables (bot list, top bots) ---------- */
 .panel table {
@@ -541,6 +614,32 @@ form.main .row {
   grid-template-columns: 1fr 1fr;
   gap: 14px;
 }
+form.main .row.button-row {
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.35fr) minmax(110px, 0.5fr);
+  align-items: end;
+}
+/* Fixed action column so row 1 (empty slot) matches rows with Remove — keeps
+   text / URL / Row Size aligned for broadcast and add/edit welcome buttons. */
+form.main .row.button-row.broadcast-button-row,
+form.main .row.button-row.save-button-row,
+form.main .row.button-row.msg-button-row {
+  grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.35fr) minmax(110px, 0.5fr) 5.85rem;
+}
+form.main .broadcast-remove-btn,
+form.main .save-remove-btn,
+form.main .msg-remove-btn {
+  align-self: end;
+  justify-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+form.main .hint {
+  margin: -6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--on-surface-variant);
+}
 form.main label {
   display: flex;
   flex-direction: column;
@@ -552,7 +651,8 @@ form.main label {
   color: var(--on-surface-variant);
 }
 form.main input,
-form.main textarea {
+form.main textarea,
+form.main select {
   width: 100%;
   padding: 12px 14px;
   font-family: "Inter", sans-serif;
@@ -569,11 +669,13 @@ form.main textarea {
 form.main input::placeholder,
 form.main textarea::placeholder { color: rgba(170, 171, 175, 0.6); }
 form.main input:focus,
-form.main textarea:focus {
+form.main textarea:focus,
+form.main select:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 4px rgba(129, 236, 255, 0.15);
 }
 form.main textarea { min-height: 90px; resize: vertical; font-family: "Inter", sans-serif; }
+form.main textarea[name="welcome_message"] { min-height: 190px; }
 
 form.main .check {
   display: flex;
@@ -619,20 +721,195 @@ form.main .submit button.primary {
 }
 form.main .submit .primary:hover { filter: brightness(1.08); }
 form.main .submit .primary:active { transform: scale(0.98); }
+
+/* Baseline .muted — ghost tonal pill. Applies to any .muted button or link
+   inside form.main (submit rows, button rows, anywhere). */
+form.main button.muted,
+form.main a.muted,
 form.main .submit .muted {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   font-family: "Manrope", sans-serif;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--on-surface-variant);
   background: var(--surface-container-highest);
+  border: 0;
   border-radius: 10px;
-  padding: 12px 18px;
+  padding: 11px 16px;
+  cursor: pointer;
   text-decoration: none;
+  transition: background-color .2s, color .2s, filter .2s;
+}
+form.main button.muted:hover,
+form.main a.muted:hover,
+form.main .submit .muted:hover {
+  color: var(--on-surface);
+  background: var(--surface-container-high);
+}
+
+/* Additive action — "Add Button" (primary-tinted ghost with + cue) */
+form.main button.muted[data-add-save-button],
+form.main button.muted[data-add-broadcast-button],
+form.main button.muted[data-add-msg-button] {
+  align-self: flex-start;
+  color: var(--primary);
+  background: rgba(129, 236, 255, 0.08);
+}
+form.main button.muted[data-add-save-button]:hover,
+form.main button.muted[data-add-broadcast-button]:hover,
+form.main button.muted[data-add-msg-button]:hover {
+  color: var(--primary);
+  background: rgba(129, 236, 255, 0.14);
+  filter: drop-shadow(0 0 6px rgba(129, 236, 255, 0.25));
+}
+form.main button.muted[data-add-save-button]::before,
+form.main button.muted[data-add-broadcast-button]::before,
+form.main button.muted[data-add-msg-button]::before {
+  content: "+";
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  margin-right: -2px;
+}
+
+/* Destructive action — Remove buttons (error-tinted ghost) */
+form.main button.muted.save-remove-btn,
+form.main button.muted.broadcast-remove-btn,
+form.main button.muted.msg-remove-btn {
+  padding: 10px 14px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--error);
+  background: rgba(255, 113, 108, 0.08);
+}
+form.main button.muted.save-remove-btn:hover,
+form.main button.muted.broadcast-remove-btn:hover,
+form.main button.muted.msg-remove-btn:hover {
+  color: var(--error);
+  background: rgba(255, 113, 108, 0.18);
+}
+
+/* ---------- Telegram Preview (add/edit + broadcast) -------------------
+   Lives inside form.main between the fields and the submit row. The shell
+   adopts the .panel language (tonal header + surface-container body) so it
+   reads as a native section of the form, not a foreign widget. Internal
+   chat screen uses our own palette + ambient bloom instead of Telegram's
+   native steel-blue, so it still feels like a chat preview but stays on
+   the Neon Observatory grid.
+   ----------------------------------------------------------------------- */
+.telegram-preview,
+form.main .telegram-preview {
+  margin: 6px 0 4px;
+  padding: 0;
+  background: var(--surface-container-low);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.telegram-preview h2,
+form.main .telegram-preview h2 {
+  margin: 0;
+  padding: 12px 18px;
+  font-family: "Manrope", sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+  background: var(--surface-container-high); /* tonal divider, not a border */
+}
+
+/* Chat screen — our interpretation of a Telegram backdrop in Neon palette */
+.tg-screen {
+  position: relative;
+  padding: 22px 22px 20px;
+  background-color: var(--surface-container-lowest);
+  background-image:
+    radial-gradient(620px 380px at 88% -10%, rgba(0, 212, 236, 0.10), transparent 60%),
+    radial-gradient(500px 420px at -5% 120%, rgba(142, 255, 113, 0.06), transparent 60%);
+}
+
+/* Chat bubble */
+.tg-bubble {
+  position: relative;
+  max-width: 560px;
+  padding: 14px 16px;
+  background: var(--surface-container-high);
+  border-radius: 14px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  overflow: hidden; /* clip image corners to bubble radius */
+}
+
+/* Preview image — flush to bubble edges, rounded top, Telegram-style */
+.tg-image {
+  display: block;
+  width: calc(100% + 32px);     /* cancel bubble's 16px side padding */
+  margin: -14px -16px 10px;     /* cancel bubble's top padding, add 10px below */
+  max-height: 320px;
+  object-fit: cover;
+  background: var(--surface-container);
+  border: 0;
+  border-radius: 0;
+}
+.tg-image[hidden] { display: none; }
+.tg-bubble::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 14px; bottom: 14px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--primary);
+  filter: drop-shadow(0 0 6px rgba(129, 236, 255, 0.55));
+}
+.tg-text {
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--on-surface);
+  white-space: pre-wrap;
+  word-break: break-word;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.tg-buttons {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tg-buttons:empty { margin-top: 0; }
+
+.tg-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
+}
+.tg-btn {
+  padding: 10px 12px;
+  font-family: "Inter", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-align: center;
+  text-transform: none;
+  color: var(--primary);
+  background: var(--surface-container-highest);
+  border: 0;
+  border-radius: 10px;
+  cursor: default;
   transition: background-color .2s, color .2s;
 }
-form.main .submit .muted:hover { color: var(--on-surface); background: var(--surface-container-high); }
+.tg-btn:hover {
+  background: rgba(129, 236, 255, 0.10);
+  color: var(--primary);
+}
 
 /* ---------- Config / Analytics (text-screen) ---------- */
 .text-screen {
@@ -789,13 +1066,21 @@ form.main .submit .muted:hover { color: var(--on-surface); background: var(--sur
         <span class="material-symbols-outlined">terminal</span>
         <span>Global Logs</span>
       </a>
-      <a class="menu-link " href="/panel?view=config">
-        <span class="material-symbols-outlined">api</span>
-        <span>API Config</span>
-      </a>
       <a class="menu-link " href="/panel?view=analytics">
         <span class="material-symbols-outlined">group</span>
         <span>User Analytics</span>
+      </a>
+      <a class="menu-link " href="/panel?view=users">
+        <span class="material-symbols-outlined">groups</span>
+        <span>Interacted Users</span>
+      </a>
+      <a class="menu-link " href="/panel?view=broadcast">
+        <span class="material-symbols-outlined">campaign</span>
+        <span>Broadcast</span>
+      </a>
+      <a class="menu-link " href="/panel?view=messages">
+        <span class="material-symbols-outlined">note_stack</span>
+        <span>Message Library</span>
       </a>
       <a class="menu-link menu-cta " href="/panel?view=add">
         <span class="material-symbols-outlined">add_circle</span>
@@ -813,7 +1098,7 @@ form.main .submit .muted:hover { color: var(--on-surface); background: var(--sur
   <header class="topbar">
     <div class="search-wrap">
       <span class="material-symbols-outlined search-icon">search</span>
-      <input type="text" placeholder="Search bots, commands, or logs…" />
+      <input id="global-search" type="text" placeholder="Search bots, commands, or logs…" />
       <kbd>⌘K</kbd>
     </div>
     <div class="top-right">
@@ -821,18 +1106,351 @@ form.main .submit .muted:hover { color: var(--on-surface); background: var(--sur
         <span class="dot dot-tertiary"></span>
         SYSTEM STABLE
       </span>
-      <span class="top-pill ok">
-        <span class="material-symbols-outlined">bolt</span>
-        LATENCY 24ms
-      </span>
     </div>
   </header>
 
   <!-- ======= MAIN CONTENT ======= -->
   <main class="content">
-    <div class="panel"><h2>Global Logs</h2><div class="logs-box"><div class="log-line"><span class="log-time">[07:15:09]</span><strong>INFO</strong> Aegis Guardian operational with 4218 members tracked.</div><div class="log-line"><span class="log-time">[07:15:09]</span><strong>INFO</strong> Store Manager operational with 3105 members tracked.</div><div class="log-line"><span class="log-time">[07:15:09]</span><strong>ERROR</strong> WebSocket timeout (retry 5s)</div><div class="log-line"><span class="log-time">[07:15:09]</span><strong>INFO</strong> News Wire operational with 4565 members tracked.</div></div></div>
+    <div class="panel"><h2>Global Logs</h2><div class="logs-box"><div class="log-line"><span class="log-time">[08:16:46]</span><strong>INFO</strong> Aegis Guardian operational with 4218 members tracked.</div><div class="log-line"><span class="log-time">[08:16:46]</span><strong>INFO</strong> Store Manager operational with 3105 members tracked.</div><div class="log-line"><span class="log-time">[08:16:46]</span><strong>ERROR</strong> WebSocket timeout (retry 5s)</div><div class="log-line"><span class="log-time">[08:16:46]</span><strong>INFO</strong> News Wire operational with 4565 members tracked.</div></div></div>
     {{notice_block}}
   </main>
+
+  <script>
+    (() => {
+      const input = document.getElementById("global-search");
+      if (input) {
+        function applySearch() {
+          const query = input.value.trim().toLowerCase();
+          const nodes = [...document.querySelectorAll("[data-searchable]")];
+          if (nodes.length === 0) return;
+          for (const node of nodes) {
+            const haystack = (node.getAttribute("data-searchable") || node.textContent || "")
+              .toLowerCase();
+            node.style.display = !query || haystack.includes(query) ? "" : "none";
+          }
+        }
+
+        input.addEventListener("input", applySearch);
+        document.addEventListener("keydown", (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+            e.preventDefault();
+            input.focus();
+            input.select();
+          }
+        });
+      }
+
+      const form = document.querySelector("form.main[action='/panel/save']");
+      const previewText = form?.querySelector("[data-preview-text]");
+      const previewButtons = form?.querySelector("[data-preview-buttons]");
+      const previewImage = form?.querySelector("[data-preview-image]");
+      if (form && previewText && previewButtons) {
+        const addSaveButton = form.querySelector("[data-add-save-button]");
+        const saveButtonRows = [...form.querySelectorAll("[data-save-button-row]")];
+        const shownSaveCount = () =>
+          saveButtonRows.filter((r) => getComputedStyle(r).display !== "none").length;
+        const toggleAddSaveButton = () => {
+          if (!addSaveButton) return;
+          addSaveButton.style.display = shownSaveCount() >= saveButtonRows.length ? "none" : "";
+        };
+        addSaveButton?.addEventListener("click", () => {
+          const next = saveButtonRows.find((r) => getComputedStyle(r).display === "none");
+          if (next) next.style.display = "";
+          toggleAddSaveButton();
+        });
+        [...form.querySelectorAll("[data-remove-save-button]")].forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const idx = Number(btn.getAttribute("data-remove-save-button") || 0);
+            const row = form.querySelector(`[data-save-button-row='${idx}']`);
+            if (!row) return;
+            row.querySelectorAll("input").forEach((el) => {
+              el.value = "";
+            });
+            row.querySelectorAll("select").forEach((el) => {
+              el.value = "2";
+            });
+            row.style.display = "none";
+            toggleAddSaveButton();
+            renderPreview();
+          });
+        });
+
+        const esc = (s) =>
+          String(s ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#39;");
+        const toRowSize = (n, fallback = 2) => {
+          const x = Number(n);
+          if (Number.isNaN(x)) return fallback;
+          return Math.max(1, Math.min(3, Math.floor(x)));
+        };
+        if (previewImage) {
+          previewImage.addEventListener("error", () => {
+            previewImage.hidden = true;
+            previewImage.removeAttribute("src");
+          });
+        }
+        const renderPreview = () => {
+          const msg = form.querySelector("textarea[name='welcome_message']")?.value?.trim() || "";
+          previewText.innerHTML = esc(msg || "Welcome message will appear here...").replaceAll("\n", "<br>");
+
+          if (previewImage) {
+            const imgUrl = form.querySelector("input[name='welcome_image']")?.value?.trim() || "";
+            if (imgUrl && /^https?:\/\//i.test(imgUrl)) {
+              if (previewImage.getAttribute("src") !== imgUrl) previewImage.src = imgUrl;
+              previewImage.hidden = false;
+            } else {
+              previewImage.removeAttribute("src");
+              previewImage.hidden = true;
+            }
+          }
+
+          const fallback = toRowSize(
+            form.querySelector("select[name='buttons_per_row']")?.value ?? 2,
+            2
+          );
+          const buttons = [];
+          for (let i = 1; i <= 5; i += 1) {
+            const text = form.querySelector(`input[name='button_${i}_text']`)?.value?.trim() || "";
+            const url = form.querySelector(`input[name='button_${i}_url']`)?.value?.trim() || "";
+            const row = toRowSize(
+              form.querySelector(`select[name='button_${i}_row']`)?.value ?? fallback,
+              fallback
+            );
+            if (text && /^https?:\/\//i.test(url)) buttons.push({ text, row });
+          }
+
+          if (buttons.length === 0) {
+            previewButtons.innerHTML = "";
+            return;
+          }
+
+          let html = "";
+          for (let i = 0; i < buttons.length; ) {
+            const size = toRowSize(buttons[i].row, fallback);
+            const row = buttons.slice(i, i + size);
+            html += `<div class="tg-row">${row
+              .map((b) => `<button type="button" class="tg-btn">${esc(b.text)}</button>`)
+              .join("")}</div>`;
+            i += size;
+          }
+          previewButtons.innerHTML = html;
+        };
+
+        form.addEventListener("input", renderPreview);
+        form.addEventListener("change", renderPreview);
+        toggleAddSaveButton();
+        renderPreview();
+      }
+
+      const broadcastForm = document.querySelector("form.main[action='/panel/broadcast']");
+      const bPreviewText = broadcastForm?.querySelector("[data-broadcast-preview-text]");
+      const bPreviewButtons = broadcastForm?.querySelector("[data-broadcast-preview-buttons]");
+      const bPreviewImage = broadcastForm?.querySelector("[data-broadcast-preview-image]");
+      if (broadcastForm && bPreviewText && bPreviewButtons) {
+        const addButton = broadcastForm.querySelector("[data-add-broadcast-button]");
+        const buttonRows = [...broadcastForm.querySelectorAll("[data-broadcast-button-row]")];
+        const shownCount = () =>
+          buttonRows.filter((r) => getComputedStyle(r).display !== "none").length;
+        const toggleAddButton = () => {
+          if (!addButton) return;
+          addButton.style.display = shownCount() >= buttonRows.length ? "none" : "";
+        };
+        addButton?.addEventListener("click", () => {
+          const next = buttonRows.find((r) => getComputedStyle(r).display === "none");
+          if (next) next.style.display = "";
+          toggleAddButton();
+        });
+        [...broadcastForm.querySelectorAll("[data-remove-broadcast-button]")].forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const idx = Number(btn.getAttribute("data-remove-broadcast-button") || 0);
+            const row = broadcastForm.querySelector(`[data-broadcast-button-row='${idx}']`);
+            if (!row) return;
+            row.querySelectorAll("input").forEach((el) => {
+              el.value = "";
+            });
+            row.querySelectorAll("select").forEach((el) => {
+              el.value = "2";
+            });
+            row.style.display = "none";
+            toggleAddButton();
+            renderBroadcastPreview();
+          });
+        });
+
+        const esc = (s) =>
+          String(s ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#39;");
+        const toRowSize = (n, fallback = 2) => {
+          const x = Number(n);
+          if (Number.isNaN(x)) return fallback;
+          return Math.max(1, Math.min(3, Math.floor(x)));
+        };
+        if (bPreviewImage) {
+          bPreviewImage.addEventListener("error", () => {
+            bPreviewImage.hidden = true;
+            bPreviewImage.removeAttribute("src");
+          });
+        }
+        const renderBroadcastPreview = () => {
+          const msg = broadcastForm.querySelector("textarea[name='broadcast_message']")?.value?.trim() || "";
+          bPreviewText.innerHTML = esc(msg || "Broadcast message will appear here...").replaceAll("\n", "<br>");
+
+          if (bPreviewImage) {
+            const imgUrl = broadcastForm.querySelector("input[name='broadcast_image']")?.value?.trim() || "";
+            if (imgUrl && /^https?:\/\//i.test(imgUrl)) {
+              if (bPreviewImage.getAttribute("src") !== imgUrl) bPreviewImage.src = imgUrl;
+              bPreviewImage.hidden = false;
+            } else {
+              bPreviewImage.removeAttribute("src");
+              bPreviewImage.hidden = true;
+            }
+          }
+
+          const fallback = toRowSize(
+            broadcastForm.querySelector("select[name='broadcast_buttons_per_row']")?.value ?? 2,
+            2
+          );
+          const buttons = [];
+          for (let i = 1; i <= 5; i += 1) {
+            const text = broadcastForm.querySelector(`input[name='broadcast_button_${i}_text']`)?.value?.trim() || "";
+            const url = broadcastForm.querySelector(`input[name='broadcast_button_${i}_url']`)?.value?.trim() || "";
+            const row = toRowSize(
+              broadcastForm.querySelector(`select[name='broadcast_button_${i}_row']`)?.value ?? fallback,
+              fallback
+            );
+            if (text && /^https?:\/\//i.test(url)) buttons.push({ text, row });
+          }
+          if (buttons.length === 0) {
+            bPreviewButtons.innerHTML = "";
+            return;
+          }
+          let html = "";
+          for (let i = 0; i < buttons.length; ) {
+            const size = toRowSize(buttons[i].row, fallback);
+            const row = buttons.slice(i, i + size);
+            html += `<div class="tg-row">${row
+              .map((b) => `<button type="button" class="tg-btn">${esc(b.text)}</button>`)
+              .join("")}</div>`;
+            i += size;
+          }
+          bPreviewButtons.innerHTML = html;
+        };
+        broadcastForm.addEventListener("input", renderBroadcastPreview);
+        broadcastForm.addEventListener("change", renderBroadcastPreview);
+        toggleAddButton();
+        renderBroadcastPreview();
+      }
+
+      const messageTplForm = document.querySelector("form.main[action='/panel/message-save']");
+      const mtPreviewText = messageTplForm?.querySelector("[data-message-template-preview-text]");
+      const mtPreviewButtons = messageTplForm?.querySelector("[data-message-template-preview-buttons]");
+      const mtPreviewImage = messageTplForm?.querySelector("[data-message-template-preview-image]");
+      if (messageTplForm && mtPreviewText && mtPreviewButtons) {
+        const esc = (s) =>
+          String(s ?? "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#39;");
+        const toRowSize = (n, fallback = 2) => {
+          const x = Number(n);
+          if (Number.isNaN(x)) return fallback;
+          return Math.max(1, Math.min(3, Math.floor(x)));
+        };
+
+        const addMtButton = messageTplForm.querySelector("[data-add-msg-button]");
+        const mtButtonRows = [...messageTplForm.querySelectorAll("[data-msg-button-row]")];
+        const shownMtCount = () =>
+          mtButtonRows.filter((r) => getComputedStyle(r).display !== "none").length;
+        const toggleAddMtButton = () => {
+          if (!addMtButton) return;
+          addMtButton.style.display = shownMtCount() >= mtButtonRows.length ? "none" : "";
+        };
+        addMtButton?.addEventListener("click", () => {
+          const next = mtButtonRows.find((r) => getComputedStyle(r).display === "none");
+          if (next) next.style.display = "";
+          toggleAddMtButton();
+        });
+        [...messageTplForm.querySelectorAll("[data-remove-msg-button]")].forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const idx = Number(btn.getAttribute("data-remove-msg-button") || 0);
+            const row = messageTplForm.querySelector(`[data-msg-button-row='${idx}']`);
+            if (!row) return;
+            row.querySelectorAll("input").forEach((el) => { el.value = ""; });
+            row.querySelectorAll("select").forEach((el) => { el.value = "2"; });
+            row.style.display = "none";
+            toggleAddMtButton();
+            renderMessageTemplatePreview();
+          });
+        });
+
+        if (mtPreviewImage) {
+          mtPreviewImage.addEventListener("error", () => {
+            mtPreviewImage.hidden = true;
+            mtPreviewImage.removeAttribute("src");
+          });
+        }
+        const renderMessageTemplatePreview = () => {
+          const msg = messageTplForm.querySelector("textarea[name='body']")?.value?.trim() || "";
+          mtPreviewText.innerHTML = esc(msg || "Message will appear here…").replaceAll("\n", "<br>");
+
+          if (mtPreviewImage) {
+            const imgUrl = messageTplForm.querySelector("input[name='image_url']")?.value?.trim() || "";
+            if (imgUrl && /^https?:\/\//i.test(imgUrl)) {
+              if (mtPreviewImage.getAttribute("src") !== imgUrl) mtPreviewImage.src = imgUrl;
+              mtPreviewImage.hidden = false;
+            } else {
+              mtPreviewImage.removeAttribute("src");
+              mtPreviewImage.hidden = true;
+            }
+          }
+
+          const fallback = toRowSize(
+            messageTplForm.querySelector("select[name='buttons_per_row']")?.value ?? 2,
+            2
+          );
+          const buttons = [];
+          for (let i = 1; i <= 5; i += 1) {
+            const text = messageTplForm.querySelector(`input[name='msg_button_${i}_text']`)?.value?.trim() || "";
+            const url = messageTplForm.querySelector(`input[name='msg_button_${i}_url']`)?.value?.trim() || "";
+            const row = toRowSize(
+              messageTplForm.querySelector(`select[name='msg_button_${i}_row']`)?.value ?? fallback,
+              fallback
+            );
+            if (text && /^https?:\/\//i.test(url)) buttons.push({ text, row });
+          }
+          if (buttons.length === 0) {
+            mtPreviewButtons.innerHTML = "";
+            return;
+          }
+          let html = "";
+          for (let i = 0; i < buttons.length; ) {
+            const size = toRowSize(buttons[i].row, fallback);
+            const row = buttons.slice(i, i + size);
+            html += `<div class="tg-row">${row
+              .map((b) => `<button type="button" class="tg-btn">${esc(b.text)}</button>`)
+              .join("")}</div>`;
+            i += size;
+          }
+          mtPreviewButtons.innerHTML = html;
+        };
+
+        messageTplForm.addEventListener("input", renderMessageTemplatePreview);
+        messageTplForm.addEventListener("change", renderMessageTemplatePreview);
+        toggleAddMtButton();
+        renderMessageTemplatePreview();
+      }
+    })();
+  </script>
 
 </body>
 </html>

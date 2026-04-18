@@ -1066,7 +1066,7 @@ form.main .telegram-preview h2 {
         <span class="material-symbols-outlined">terminal</span>
         <span>Global Logs</span>
       </a>
-      <a class="menu-link active" href="/panel?view=analytics">
+      <a class="menu-link " href="/panel?view=analytics">
         <span class="material-symbols-outlined">group</span>
         <span>User Analytics</span>
       </a>
@@ -1078,7 +1078,7 @@ form.main .telegram-preview h2 {
         <span class="material-symbols-outlined">campaign</span>
         <span>Broadcast</span>
       </a>
-      <a class="menu-link " href="/panel?view=messages">
+      <a class="menu-link active" href="/panel?view=messages">
         <span class="material-symbols-outlined">note_stack</span>
         <span>Message Library</span>
       </a>
@@ -1111,12 +1111,41 @@ form.main .telegram-preview h2 {
 
   <!-- ======= MAIN CONTENT ======= -->
   <main class="content">
-    <div class="panel"><h2>User Analytics</h2><div class="text-screen">
-      <p>Total tracked members: <strong>12800</strong></p>
-      <p>Average members per bot: <strong>3200.0</strong></p>
-      <p>Enabled bot share: <strong>3/4</strong></p>
-      <p>Polling error count (live session): <strong>3</strong></p>
-    </div></div>
+    <div class="panel">
+  <div class="panel-heading-row">
+    <h2>New Saved Message</h2>
+    <a class="muted panel-heading-action" href="/panel?view=messages">Back to list</a>
+  </div>
+  <form class="main message-template-form" method="POST" action="/panel/message-save">
+    <input type="hidden" name="id" value="0"/>
+    
+    <label>Title<input name="title" required maxlength="120" placeholder="e.g. Weekly promo" value=""/></label>
+    <label>Message<textarea name="body" required maxlength="4096" placeholder="Full message text…"></textarea></label>
+    <div class="row"><label>Image URL (optional)<input name="image_url" maxlength="2000" placeholder="https://…" value=""/></label><label>Buttons Per Row
+      <select name="buttons_per_row">
+        <option value="1" >1</option>
+        <option value="2" selected>2</option>
+        <option value="3" >3</option>
+      </select>
+    </label></div>
+    <div class="row button-row msg-button-row" data-msg-button-row="1" ><label>Button 1 Text<input name="msg_button_1_text" placeholder="Optional" value=""/></label><label>Button 1 URL<input name="msg_button_1_url" placeholder="https://..." value=""/></label><label>Row Size<select name="msg_button_1_row"><option value="1" >1/1</option><option value="2" selected>1/2</option><option value="3" >1/3</option></select></label><div></div></div><div class="row button-row msg-button-row" data-msg-button-row="2" style='display:none'><label>Button 2 Text<input name="msg_button_2_text" placeholder="Optional" value=""/></label><label>Button 2 URL<input name="msg_button_2_url" placeholder="https://..." value=""/></label><label>Row Size<select name="msg_button_2_row"><option value="1" >1/1</option><option value="2" selected>1/2</option><option value="3" >1/3</option></select></label><button type="button" class="muted msg-remove-btn" data-remove-msg-button="2">Remove</button></div><div class="row button-row msg-button-row" data-msg-button-row="3" style='display:none'><label>Button 3 Text<input name="msg_button_3_text" placeholder="Optional" value=""/></label><label>Button 3 URL<input name="msg_button_3_url" placeholder="https://..." value=""/></label><label>Row Size<select name="msg_button_3_row"><option value="1" >1/1</option><option value="2" selected>1/2</option><option value="3" >1/3</option></select></label><button type="button" class="muted msg-remove-btn" data-remove-msg-button="3">Remove</button></div><div class="row button-row msg-button-row" data-msg-button-row="4" style='display:none'><label>Button 4 Text<input name="msg_button_4_text" placeholder="Optional" value=""/></label><label>Button 4 URL<input name="msg_button_4_url" placeholder="https://..." value=""/></label><label>Row Size<select name="msg_button_4_row"><option value="1" >1/1</option><option value="2" selected>1/2</option><option value="3" >1/3</option></select></label><button type="button" class="muted msg-remove-btn" data-remove-msg-button="4">Remove</button></div><div class="row button-row msg-button-row" data-msg-button-row="5" style='display:none'><label>Button 5 Text<input name="msg_button_5_text" placeholder="Optional" value=""/></label><label>Button 5 URL<input name="msg_button_5_url" placeholder="https://..." value=""/></label><label>Row Size<select name="msg_button_5_row"><option value="1" >1/1</option><option value="2" selected>1/2</option><option value="3" >1/3</option></select></label><button type="button" class="muted msg-remove-btn" data-remove-msg-button="5">Remove</button></div>
+    <div class="submit"><button type="button" class="muted" data-add-msg-button>Add Button</button></div>
+    <div class="telegram-preview" data-preview-box>
+      <h2>Message Preview</h2>
+      <div class="tg-screen">
+        <div class="tg-bubble">
+          <img class="tg-image" data-message-template-preview-image alt="" hidden/>
+          <div class="tg-text" data-message-template-preview-text>Message will appear here…</div>
+          <div class="tg-buttons" data-message-template-preview-buttons></div>
+        </div>
+      </div>
+    </div>
+    <div class="submit">
+      <button class="primary" type="submit">Save Message</button>
+      <a class="muted" href="/panel?view=messages">Cancel</a>
+    </div>
+  </form>
+</div>
     {{notice_block}}
   </main>
 

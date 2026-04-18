@@ -389,6 +389,79 @@ body {
   letter-spacing: -0.01em;
   background: var(--surface-container-high); /* tonal divider, not a border */
 }
+.panel-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 18px 22px;
+  background: var(--surface-container-high);
+}
+.panel-heading-row h2 {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+.panel-heading-action {
+  flex-shrink: 0;
+}
+.panel-heading-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-family: "Manrope", sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--primary);
+  background: rgba(129, 236, 255, 0.08);
+  border-radius: 10px;
+  transition: background-color .2s, color .2s, filter .2s;
+}
+.panel-heading-cta:hover {
+  color: var(--primary);
+  background: rgba(129, 236, 255, 0.14);
+  filter: drop-shadow(0 0 6px rgba(129, 236, 255, 0.25));
+}
+.panel-heading-cta .material-symbols-outlined {
+  font-size: 16px;
+  font-variation-settings: 'wght' 700;
+}
+.msg-template-id {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary);
+}
+.msg-template-id-banner {
+  margin: -4px 0 4px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  background: var(--surface-container-lowest);
+  border-radius: 10px;
+  border: 1px solid rgba(70, 72, 75, 0.12);
+}
+.msg-template-id-banner code {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--primary);
+}
+.panel h3.panel-subhead {
+  margin: 0;
+  padding: 18px 22px 0;
+  font-family: "Manrope", sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
 
 /* ---------- Tables (bot list, top bots) ---------- */
 .panel table {
@@ -532,17 +605,21 @@ form.main .row.button-row {
   grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.35fr) minmax(110px, 0.5fr);
   align-items: end;
 }
-form.main .row.button-row.broadcast-button-row {
-  grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.35fr) minmax(110px, 0.5fr) auto;
+/* Fixed action column so row 1 (empty slot) matches rows with Remove — keeps
+   text / URL / Row Size aligned for broadcast and add/edit welcome buttons. */
+form.main .row.button-row.broadcast-button-row,
+form.main .row.button-row.save-button-row,
+form.main .row.button-row.msg-button-row {
+  grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.35fr) minmax(110px, 0.5fr) 5.85rem;
 }
-form.main .row.button-row.save-button-row {
-  grid-template-columns: minmax(160px, 1fr) minmax(220px, 1.35fr) minmax(110px, 0.5fr) auto;
-}
-form.main .broadcast-remove-btn {
+form.main .broadcast-remove-btn,
+form.main .save-remove-btn,
+form.main .msg-remove-btn {
   align-self: end;
-}
-form.main .save-remove-btn {
-  align-self: end;
+  justify-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 form.main .hint {
   margin: -6px 0 0;
@@ -631,91 +708,194 @@ form.main .submit button.primary {
 }
 form.main .submit .primary:hover { filter: brightness(1.08); }
 form.main .submit .primary:active { transform: scale(0.98); }
+
+/* Baseline .muted — ghost tonal pill. Applies to any .muted button or link
+   inside form.main (submit rows, button rows, anywhere). */
+form.main button.muted,
+form.main a.muted,
 form.main .submit .muted {
-  font-family: "Manrope", sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--on-surface-variant);
-  background: var(--surface-container-highest);
-  border-radius: 10px;
-  padding: 12px 18px;
-  text-decoration: none;
-  transition: background-color .2s, color .2s;
-}
-form.main .submit .muted:hover { color: var(--on-surface); background: var(--surface-container-high); }
-
-/* ---------- Telegram Preview (add/edit) ---------- */
-.telegram-preview {
-  padding-bottom: 18px;
-}
-.telegram-preview h2 {
-  margin-bottom: 0;
-}
-
-/* Preview sits inside form.main — no second card shell; title matches form labels */
-form.main .telegram-preview {
-  margin: 0;
-  padding: 0 0 18px;
-  background: transparent;
-  border-radius: 0;
-  box-shadow: none;
-}
-form.main .telegram-preview h2 {
-  margin: 0 0 10px;
-  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   font-family: "Manrope", sans-serif;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--on-surface-variant);
-  background: none;
+  background: var(--surface-container-highest);
+  border: 0;
+  border-radius: 10px;
+  padding: 11px 16px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color .2s, color .2s, filter .2s;
 }
-form.main .telegram-preview .tg-screen {
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(70, 72, 75, 0.22);
+form.main button.muted:hover,
+form.main a.muted:hover,
+form.main .submit .muted:hover {
+  color: var(--on-surface);
+  background: var(--surface-container-high);
 }
 
-.tg-screen {
-  padding: 16px 18px 2px;
-  background: linear-gradient(180deg, #1a2430 0%, #101820 100%);
+/* Additive action — "Add Button" (primary-tinted ghost with + cue) */
+form.main button.muted[data-add-save-button],
+form.main button.muted[data-add-broadcast-button],
+form.main button.muted[data-add-msg-button] {
+  align-self: flex-start;
+  color: var(--primary);
+  background: rgba(129, 236, 255, 0.08);
 }
-.tg-bubble {
-  max-width: 560px;
-  background: #1f2c39;
+form.main button.muted[data-add-save-button]:hover,
+form.main button.muted[data-add-broadcast-button]:hover,
+form.main button.muted[data-add-msg-button]:hover {
+  color: var(--primary);
+  background: rgba(129, 236, 255, 0.14);
+  filter: drop-shadow(0 0 6px rgba(129, 236, 255, 0.25));
+}
+form.main button.muted[data-add-save-button]::before,
+form.main button.muted[data-add-broadcast-button]::before,
+form.main button.muted[data-add-msg-button]::before {
+  content: "+";
+  display: inline-block;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  margin-right: -2px;
+}
+
+/* Destructive action — Remove buttons (error-tinted ghost) */
+form.main button.muted.save-remove-btn,
+form.main button.muted.broadcast-remove-btn,
+form.main button.muted.msg-remove-btn {
+  padding: 10px 14px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--error);
+  background: rgba(255, 113, 108, 0.08);
+}
+form.main button.muted.save-remove-btn:hover,
+form.main button.muted.broadcast-remove-btn:hover,
+form.main button.muted.msg-remove-btn:hover {
+  color: var(--error);
+  background: rgba(255, 113, 108, 0.18);
+}
+
+/* ---------- Telegram Preview (add/edit + broadcast) -------------------
+   Lives inside form.main between the fields and the submit row. The shell
+   adopts the .panel language (tonal header + surface-container body) so it
+   reads as a native section of the form, not a foreign widget. Internal
+   chat screen uses our own palette + ambient bloom instead of Telegram's
+   native steel-blue, so it still feels like a chat preview but stays on
+   the Neon Observatory grid.
+   ----------------------------------------------------------------------- */
+.telegram-preview,
+form.main .telegram-preview {
+  margin: 6px 0 4px;
+  padding: 0;
+  background: var(--surface-container-low);
   border-radius: 14px;
-  padding: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+.telegram-preview h2,
+form.main .telegram-preview h2 {
+  margin: 0;
+  padding: 12px 18px;
+  font-family: "Manrope", sans-serif;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+  background: var(--surface-container-high); /* tonal divider, not a border */
+}
+
+/* Chat screen — our interpretation of a Telegram backdrop in Neon palette */
+.tg-screen {
+  position: relative;
+  padding: 22px 22px 20px;
+  background-color: var(--surface-container-lowest);
+  background-image:
+    radial-gradient(620px 380px at 88% -10%, rgba(0, 212, 236, 0.10), transparent 60%),
+    radial-gradient(500px 420px at -5% 120%, rgba(142, 255, 113, 0.06), transparent 60%);
+}
+
+/* Chat bubble */
+.tg-bubble {
+  position: relative;
+  max-width: 560px;
+  padding: 14px 16px;
+  background: var(--surface-container-high);
+  border-radius: 14px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  overflow: hidden; /* clip image corners to bubble radius */
+}
+
+/* Preview image — flush to bubble edges, rounded top, Telegram-style */
+.tg-image {
+  display: block;
+  width: calc(100% + 32px);     /* cancel bubble's 16px side padding */
+  margin: -14px -16px 10px;     /* cancel bubble's top padding, add 10px below */
+  max-height: 320px;
+  object-fit: cover;
+  background: var(--surface-container);
+  border: 0;
+  border-radius: 0;
+}
+.tg-image[hidden] { display: none; }
+.tg-bubble::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 14px; bottom: 14px;
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: var(--primary);
+  filter: drop-shadow(0 0 6px rgba(129, 236, 255, 0.55));
 }
 .tg-text {
-  color: #eaf3ff;
+  font-family: "Inter", sans-serif;
   font-size: 14px;
-  line-height: 1.45;
-  white-space: normal;
+  line-height: 1.55;
+  color: var(--on-surface);
+  white-space: pre-wrap;
+  word-break: break-word;
+  letter-spacing: 0;
+  text-transform: none;
 }
+
 .tg-buttons {
-  margin-top: 10px;
+  margin-top: 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
+.tg-buttons:empty { margin-top: 0; }
+
 .tg-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 6px;
 }
 .tg-btn {
-  border: 0;
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: #3d6f95;
-  color: #f3f9ff;
+  padding: 10px 12px;
+  font-family: "Inter", sans-serif;
   font-size: 12px;
   font-weight: 600;
+  letter-spacing: 0;
   text-align: center;
+  text-transform: none;
+  color: var(--primary);
+  background: var(--surface-container-highest);
+  border: 0;
+  border-radius: 10px;
+  cursor: default;
+  transition: background-color .2s, color .2s;
+}
+.tg-btn:hover {
+  background: rgba(129, 236, 255, 0.10);
+  color: var(--primary);
 }
 
 /* ---------- Config / Analytics (text-screen) ---------- */

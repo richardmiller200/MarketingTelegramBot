@@ -1066,7 +1066,7 @@ form.main .telegram-preview h2 {
         <span class="material-symbols-outlined">terminal</span>
         <span>Global Logs</span>
       </a>
-      <a class="menu-link active" href="/panel?view=analytics">
+      <a class="menu-link " href="/panel?view=analytics">
         <span class="material-symbols-outlined">group</span>
         <span>User Analytics</span>
       </a>
@@ -1078,7 +1078,7 @@ form.main .telegram-preview h2 {
         <span class="material-symbols-outlined">campaign</span>
         <span>Broadcast</span>
       </a>
-      <a class="menu-link " href="/panel?view=messages">
+      <a class="menu-link active" href="/panel?view=messages">
         <span class="material-symbols-outlined">note_stack</span>
         <span>Message Library</span>
       </a>
@@ -1111,12 +1111,52 @@ form.main .telegram-preview h2 {
 
   <!-- ======= MAIN CONTENT ======= -->
   <main class="content">
-    <div class="panel"><h2>User Analytics</h2><div class="text-screen">
-      <p>Total tracked members: <strong>12800</strong></p>
-      <p>Average members per bot: <strong>3200.0</strong></p>
-      <p>Enabled bot share: <strong>3/4</strong></p>
-      <p>Polling error count (live session): <strong>3</strong></p>
-    </div></div>
+    <div class="panel">
+  <div class="panel-heading-row">
+    <h2>Message Library</h2>
+    <a class="muted panel-heading-action panel-heading-cta" href="/panel?view=messages&new=1">
+      <span class="material-symbols-outlined">add</span>
+      Add Message
+    </a>
+  </div>
+  <div class="text-screen">
+    <p>Each saved message has a stable reference ID (<code class="msg-template-id">MSG-…</code>). Use <strong>Add Message</strong> to compose a new one. Limits: title 120 chars, body 4096 chars.</p>
+  </div>
+  <table>
+    <thead><tr><th>ID</th><th>Title</th><th>Preview</th><th>Image</th><th>Updated</th><th>Actions</th></tr></thead>
+    <tbody><tr>
+          <td><code class="msg-template-id">MSG-1</code></td>
+          <td>Weekly promo</td>
+          <td><code>Flash sale this weekend! All tiers 20% off. Ends Sunday midnight UTC.</code></td>
+          <td><span class="pill ok">Yes</span></td>
+          <td>2026-04-15 10:34:12</td>
+          <td class="actions">
+            <a href="/panel?view=messages&edit=1">Edit</a>
+            <form method="POST" action="/panel/message-delete"><input type="hidden" name="id" value="1"/><button type="submit">Delete</button></form>
+          </td>
+        </tr><tr>
+          <td><code class="msg-template-id">MSG-2</code></td>
+          <td>Welcome back</td>
+          <td><code>Glad to see you again! Here&#39;s what&#39;s new since your last visit.</code></td>
+          <td>—</td>
+          <td>2026-04-12 08:11:02</td>
+          <td class="actions">
+            <a href="/panel?view=messages&edit=2">Edit</a>
+            <form method="POST" action="/panel/message-delete"><input type="hidden" name="id" value="2"/><button type="submit">Delete</button></form>
+          </td>
+        </tr><tr>
+          <td><code class="msg-template-id">MSG-3</code></td>
+          <td>Event reminder</td>
+          <td><code>Live AMA in 30 minutes on the main channel.</code></td>
+          <td>—</td>
+          <td>2026-04-10 17:22:45</td>
+          <td class="actions">
+            <a href="/panel?view=messages&edit=3">Edit</a>
+            <form method="POST" action="/panel/message-delete"><input type="hidden" name="id" value="3"/><button type="submit">Delete</button></form>
+          </td>
+        </tr></tbody>
+  </table>
+</div>
     {{notice_block}}
   </main>
 
