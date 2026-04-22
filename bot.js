@@ -5,7 +5,7 @@ import path from "path";
 import crypto from "crypto";
 import TelegramBot from "node-telegram-bot-api";
 import XLSX from "xlsx";
-import Database from "better-sqlite3";
+import { Pool } from "pg";
 
 const ROOT = process.cwd();
 
@@ -29,10 +29,10 @@ const PANEL_HOST = String(process.env.PANEL_HOST ?? "127.0.0.1").trim();
 const PANEL_USERNAME = String(process.env.PANEL_USERNAME ?? "admin").trim();
 const PANEL_PASSWORD = String(process.env.PANEL_PASSWORD ?? "").trim();
 const PANEL_MAX_FAILED_ATTEMPTS = 3;
-const DB_FILE = path.join(ROOT, "data", "config.sqlite");
 const TEMPLATES_DIR = path.join(ROOT, "templates");
 const ADMIN_LOGIN_STATE_FILE = path.join(ROOT, "data", "admin-login-state.json");
 const BROADCAST_LOG_FILE = path.join(ROOT, "data", "broadcast-log.json");
+const PG_CONNECTION_STRING = String(process.env.DATABASE_URL ?? "").trim();
 
 function parseAdminIds(raw) {
   return String(raw ?? "")
@@ -281,14 +281,22 @@ function markFirstAndheriBot(configs) {
   });
 }
 
-function openConfigDb() {
-  const dir = path.dirname(DB_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const db = new Database(DB_FILE);
-  db.pragma("journal_mode = WAL");
-  db.exec(`
+async function openConfigDb() {
+  const pool = new Pool(
+    PG_CONNECTION_STRING
+      ? { connectionString: PG_CONNECTION_STRING }
+      : {
+          host: process.env.PGHOST ?? "127.0.0.1",
+          port: Number(process.env.PGPORT ?? "5432"),
+          user: process.env.PGUSER ?? process.env.USER,
+          password: process.env.PGPASSWORD ?? "",
+          database: process.env.PGDATABASE ?? "postgres",
+        }
+  );
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS bots (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       name TEXT NOT NULL,
       token TEXT NOT NULL,
       admin_ids TEXT NOT NULL DEFAULT '',
@@ -305,48 +313,49 @@ function openConfigDb() {
       updated_at TEXT NOT NULL
     );
   `);
-  try {
-    const cols = db.prepare("PRAGMA table_info(bots)").all();
-    const hasButtonsPerRow = cols.some((c) => c.name === "buttons_per_row");
-    if (!hasButtonsPerRow) {
-      db.exec("ALTER TABLE bots ADD COLUMN buttons_per_row INTEGER NOT NULL DEFAULT 2");
-    }
-    const hasButtonLayout = cols.some((c) => c.name === "button_layout");
-    if (!hasButtonLayout) {
-      db.exec("ALTER TABLE bots ADD COLUMN button_layout TEXT NOT NULL DEFAULT ''");
-    }
-  } catch {}
-  db.exec(`
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS message_templates (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       title TEXT NOT NULL DEFAULT '',
       body TEXT NOT NULL DEFAULT '',
       image_url TEXT NOT NULL DEFAULT '',
+      buttons TEXT NOT NULL DEFAULT '[]',
+      buttons_per_row INTEGER NOT NULL DEFAULT 2,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
   `);
-  try {
-    const cols = db.prepare("PRAGMA table_info(message_templates)").all();
-    if (!cols.some((c) => c.name === "buttons")) {
-      db.exec("ALTER TABLE message_templates ADD COLUMN buttons TEXT NOT NULL DEFAULT '[]'");
-    }
-    if (!cols.some((c) => c.name === "buttons_per_row")) {
-      db.exec("ALTER TABLE message_templates ADD COLUMN buttons_per_row INTEGER NOT NULL DEFAULT 2");
-    }
-  } catch {}
-  return db;
+
+  return {
+    pool,
+    async all(query, params = []) {
+      const result = await pool.query(query, params);
+      return result.rows;
+    },
+    async get(query, params = []) {
+      const result = await pool.query(query, params);
+      return result.rows[0] ?? null;
+    },
+    async run(query, params = []) {
+      const result = await pool.query(query, params);
+      return {
+        rowCount: result.rowCount,
+        lastInsertRowid: result.rows?.[0]?.id ?? 0,
+      };
+    },
+  };
 }
 
 const MESSAGE_TEMPLATE_TITLE_MAX = 120;
 const MESSAGE_TEMPLATE_BODY_MAX = 4096;
 const MESSAGE_TEMPLATE_IMAGE_MAX = 2000;
 
-function loadMessageTemplates(db) {
+async function loadMessageTemplates(db) {
   try {
-    return db
-      .prepare("SELECT * FROM message_templates ORDER BY updated_at DESC, id DESC")
-      .all();
+    return await db.all(
+      "SELECT * FROM message_templates ORDER BY updated_at DESC, id DESC"
+    );
   } catch {
     return [];
   }
@@ -504,68 +513,77 @@ function dbRowToConfig(row, index) {
   };
 }
 
-function seedSqliteIfEmpty(db, seedConfigs) {
-  const count = Number(db.prepare("SELECT COUNT(*) AS c FROM bots").get().c || 0);
+async function seedDbIfEmpty(db, seedConfigs) {
+  const countRow = await db.get("SELECT COUNT(*)::int AS c FROM bots");
+  const count = Number(countRow?.c || 0);
   if (count > 0 || seedConfigs.length === 0) return false;
-  const insert = db.prepare(`
+  const insertSql = `
     INSERT INTO bots (
       name, token, admin_ids, enabled, welcome_message, welcome_image,
       group_chat_id, channel_url, random_channel_urls, welcome_buttons, buttons_per_row, button_layout, created_at, updated_at
     ) VALUES (
-      @name, @token, @admin_ids, @enabled, @welcome_message, @welcome_image,
-      @group_chat_id, @channel_url, @random_channel_urls, @welcome_buttons, @buttons_per_row, @button_layout, @created_at, @updated_at
+      $1, $2, $3, $4, $5, $6,
+      $7, $8, $9, $10, $11, $12, $13, $14
     )
-  `);
+  `;
   const now = new Date().toISOString();
-  const txn = db.transaction((items) => {
-    for (const cfg of items) {
-      const row = configToDbRow(cfg);
-      insert.run({ ...row, created_at: now, updated_at: now });
-    }
-  });
-  txn(seedConfigs);
+  for (const cfg of seedConfigs) {
+    const row = configToDbRow(cfg);
+    await db.run(insertSql, [
+      row.name,
+      row.token,
+      row.admin_ids,
+      row.enabled,
+      row.welcome_message,
+      row.welcome_image,
+      row.group_chat_id,
+      row.channel_url,
+      row.random_channel_urls,
+      row.welcome_buttons,
+      row.buttons_per_row,
+      row.button_layout,
+      now,
+      now,
+    ]);
+  }
   return true;
 }
 
-function loadBotsFromSqlite(db) {
-  const rows = db
-    .prepare("SELECT * FROM bots WHERE enabled = 1 ORDER BY id ASC")
-    .all();
+async function loadBotsFromDb(db) {
+  const rows = await db.all("SELECT * FROM bots WHERE enabled = 1 ORDER BY id ASC");
   return rows
     .map((row, i) => dbRowToConfig(row, i))
     .filter((c) => c.enabled && c.token && c.token !== "PASTE_TOKEN_FROM_BOTFATHER");
 }
 
-function loadEnabledConfigsFromDb(db) {
-  const rows = db
-    .prepare("SELECT * FROM bots WHERE enabled = 1 ORDER BY id ASC")
-    .all();
+async function loadEnabledConfigsFromDb(db) {
+  const rows = await db.all("SELECT * FROM bots WHERE enabled = 1 ORDER BY id ASC");
   return rows
     .map((row, i) => dbRowToConfig(row, i))
     .filter((c) => c.enabled && c.token && c.token !== "PASTE_TOKEN_FROM_BOTFATHER");
 }
 
-function resolveConfigs() {
+async function resolveConfigs() {
   const excelPath = path.resolve(
     ROOT,
     process.env.BOTS_EXCEL_PATH || "bots.xlsx"
   );
-  const db = openConfigDb();
+  const db = await openConfigDb();
 
   const fromEnv = loadBotsFromEnv();
   const fromExcel = loadBotsFromExcel(excelPath);
-  seedSqliteIfEmpty(db, fromEnv.length > 0 ? fromEnv : fromExcel);
+  await seedDbIfEmpty(db, fromEnv.length > 0 ? fromEnv : fromExcel);
 
-  const fromSqlite = loadBotsFromSqlite(db);
-  if (fromSqlite.length > 0) {
-    return { configs: markFirstAndheriBot(fromSqlite), source: "sqlite", db };
+  const fromDb = await loadBotsFromDb(db);
+  if (fromDb.length > 0) {
+    return { configs: markFirstAndheriBot(fromDb), source: "postgres", db };
   }
 
   console.error(
     "No bots found. Either:\n" +
       "  • Add bots in the admin panel, or\n" +
-      "  • Set BOTS_JSON/BOT_TOKEN in .env to auto-seed SQLite once, or\n" +
-      "  • Create bots.xlsx (run: npm run template) to auto-seed SQLite once."
+      "  • Set BOTS_JSON/BOT_TOKEN in .env to auto-seed PostgreSQL once, or\n" +
+      "  • Create bots.xlsx (run: npm run template) to auto-seed PostgreSQL once."
   );
   process.exit(1);
 }
@@ -1355,8 +1373,8 @@ function buildUrlButtonReplyMarkup(buttons, fallbackPerRow = 2) {
   return { inline_keyboard: inlineKeyboard };
 }
 
-function loadBotRows(db) {
-  return db.prepare("SELECT * FROM bots ORDER BY id ASC").all();
+async function loadBotRows(db) {
+  return await db.all("SELECT * FROM bots ORDER BY id ASC");
 }
 
 function readTemplateFile(name) {
@@ -1426,7 +1444,7 @@ function renderLoginPage(error = "") {
   );
 }
 
-function renderPanelPage({
+async function renderPanelPage({
   botRows,
   statusRows,
   editingId = 0,
@@ -1436,6 +1454,8 @@ function renderPanelPage({
   view = "dashboard",
   db,
 }) {
+  const templates =
+    view === "messages" ? await loadMessageTemplates(db) : [];
   const rowsBySlug = new Map(statusRows.map((r) => [r.slug, r]));
   const totalBots = botRows.length;
   const enabledBots = botRows.filter((b) => Number(b.enabled) !== 0).length;
@@ -1595,7 +1615,6 @@ function renderPanelPage({
       </div>`;
     }
     if (view === "messages") {
-      const templates = loadMessageTemplates(db);
       const editId = Number(templateEditId || 0);
       const editingTpl =
         editId > 0 ? templates.find((t) => Number(t.id) === editId) || null : null;
@@ -1903,7 +1922,7 @@ function startAdminPanel(db, instances) {
     const botId = Number(id || 0);
     if (!botId) return;
     await queueRuntimeOp(botId, async () => {
-      const enabledConfigs = loadEnabledConfigsFromDb(db);
+      const enabledConfigs = await loadEnabledConfigsFromDb(db);
       const nextCfg = enabledConfigs.find((c) => Number(c.id || 0) === botId);
       const idx = findInstanceIndexByBotId(botId);
       const current = idx >= 0 ? instances[idx] : null;
@@ -2107,35 +2126,6 @@ function startAdminPanel(db, instances) {
     res.end();
   };
   const readForm = async (req) => new URLSearchParams(await parseBody(req));
-  const saveStmt = db.prepare(`
-    INSERT INTO bots (
-      name, token, admin_ids, enabled, welcome_message, welcome_image, group_chat_id,
-      channel_url, random_channel_urls, welcome_buttons, buttons_per_row, button_layout, created_at, updated_at
-    ) VALUES (
-      @name, @token, @admin_ids, @enabled, @welcome_message, @welcome_image, @group_chat_id,
-      @channel_url, @random_channel_urls, @welcome_buttons, @buttons_per_row, @button_layout, @created_at, @updated_at
-    )
-  `);
-  const updateStmt = db.prepare(`
-    UPDATE bots SET
-      name=@name, token=@token, admin_ids=@admin_ids, enabled=@enabled, welcome_message=@welcome_message,
-      welcome_image=@welcome_image, group_chat_id=@group_chat_id, channel_url=@channel_url,
-      random_channel_urls=@random_channel_urls, welcome_buttons=@welcome_buttons,
-      buttons_per_row=@buttons_per_row, button_layout=@button_layout, updated_at=@updated_at
-    WHERE id=@id
-  `);
-  const deleteStmt = db.prepare("DELETE FROM bots WHERE id = ?");
-  const messageInsertStmt = db.prepare(`
-    INSERT INTO message_templates (title, body, image_url, buttons, buttons_per_row, created_at, updated_at)
-    VALUES (@title, @body, @image_url, @buttons, @buttons_per_row, @created_at, @updated_at)
-  `);
-  const messageUpdateStmt = db.prepare(`
-    UPDATE message_templates
-    SET title=@title, body=@body, image_url=@image_url, buttons=@buttons,
-        buttons_per_row=@buttons_per_row, updated_at=@updated_at
-    WHERE id=@id
-  `);
-  const messageDeleteStmt = db.prepare("DELETE FROM message_templates WHERE id = ?");
 
   const server = http.createServer(async (req, res) => {
     try {
@@ -2217,7 +2207,7 @@ function startAdminPanel(db, instances) {
         return;
       }
       if (req.method === "GET" && (reqUrl.pathname === "/" || reqUrl.pathname === "/panel")) {
-        const rows = loadBotRows(db);
+        const rows = await loadBotRows(db);
         const live = getStatusRows(instances);
         const edit = Number(reqUrl.searchParams.get("edit") || 0);
         const notice = reqUrl.searchParams.get("notice") || "";
@@ -2226,18 +2216,17 @@ function startAdminPanel(db, instances) {
         const templateNew = view === "messages" && String(reqUrl.searchParams.get("new") || "") === "1";
         const templateEditId = view === "messages" && !templateNew ? edit : 0;
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(
-          renderPanelPage({
-            botRows: rows,
-            statusRows: live,
-            editingId: editingBotId,
-            templateEditId,
-            templateNew,
-            notice,
-            view,
-            db,
-          })
-        );
+        const html = await renderPanelPage({
+          botRows: rows,
+          statusRows: live,
+          editingId: editingBotId,
+          templateEditId,
+          templateNew,
+          notice,
+          view,
+          db,
+        });
+        res.end(html);
         return;
       }
       if (req.method === "POST" && reqUrl.pathname === "/panel/save") {
@@ -2264,7 +2253,30 @@ function startAdminPanel(db, instances) {
           return;
         }
         if (payload.id > 0) {
-          updateStmt.run(payload);
+          await db.run(
+            `UPDATE bots SET
+              name=$1, token=$2, admin_ids=$3, enabled=$4, welcome_message=$5,
+              welcome_image=$6, group_chat_id=$7, channel_url=$8,
+              random_channel_urls=$9, welcome_buttons=$10,
+              buttons_per_row=$11, button_layout=$12, updated_at=$13
+            WHERE id=$14`,
+            [
+              payload.name,
+              payload.token,
+              payload.admin_ids,
+              payload.enabled,
+              payload.welcome_message,
+              payload.welcome_image,
+              payload.group_chat_id,
+              payload.channel_url,
+              payload.random_channel_urls,
+              payload.welcome_buttons,
+              payload.buttons_per_row,
+              payload.button_layout,
+              payload.updated_at,
+              payload.id,
+            ]
+          );
           await applyRuntimeForBotId(payload.id);
           redirect(
             res,
@@ -2272,7 +2284,31 @@ function startAdminPanel(db, instances) {
           );
           return;
         }
-        const result = saveStmt.run({ ...payload, created_at: payload.updated_at });
+        const result = await db.run(
+          `INSERT INTO bots (
+            name, token, admin_ids, enabled, welcome_message, welcome_image, group_chat_id,
+            channel_url, random_channel_urls, welcome_buttons, buttons_per_row, button_layout, created_at, updated_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7,
+            $8, $9, $10, $11, $12, $13, $14
+          ) RETURNING id`,
+          [
+            payload.name,
+            payload.token,
+            payload.admin_ids,
+            payload.enabled,
+            payload.welcome_message,
+            payload.welcome_image,
+            payload.group_chat_id,
+            payload.channel_url,
+            payload.random_channel_urls,
+            payload.welcome_buttons,
+            payload.buttons_per_row,
+            payload.button_layout,
+            payload.updated_at,
+            payload.updated_at,
+          ]
+        );
         await applyRuntimeForBotId(result.lastInsertRowid);
         redirect(
           res,
@@ -2306,7 +2342,7 @@ function startAdminPanel(db, instances) {
         const id = Number(form.get("id") || 0);
         if (id > 0) {
           await stopInstanceAt(findInstanceIndexByBotId(id));
-          deleteStmt.run(id);
+          await db.run("DELETE FROM bots WHERE id = $1", [id]);
         }
         redirect(
           res,
@@ -2336,7 +2372,7 @@ function startAdminPanel(db, instances) {
         const buttonsJson = JSON.stringify(buttons);
         const now = new Date().toISOString();
         if (id > 0) {
-          const row = db.prepare("SELECT id FROM message_templates WHERE id = ?").get(id);
+          const row = await db.get("SELECT id FROM message_templates WHERE id = $1", [id]);
           if (!row) {
             redirect(
               res,
@@ -2344,30 +2380,24 @@ function startAdminPanel(db, instances) {
             );
             return;
           }
-          messageUpdateStmt.run({
-            id,
-            title,
-            body,
-            image_url: imageUrl,
-            buttons: buttonsJson,
-            buttons_per_row: buttonsPerRow,
-            updated_at: now,
-          });
+          await db.run(
+            `UPDATE message_templates
+            SET title=$1, body=$2, image_url=$3, buttons=$4,
+                buttons_per_row=$5, updated_at=$6
+            WHERE id=$7`,
+            [title, body, imageUrl, buttonsJson, buttonsPerRow, now, id]
+          );
           redirect(
             res,
             `/panel?view=messages&edit=${id}&notice=${encodeURIComponent("Message updated.")}`
           );
           return;
         }
-        const ins = messageInsertStmt.run({
-          title,
-          body,
-          image_url: imageUrl,
-          buttons: buttonsJson,
-          buttons_per_row: buttonsPerRow,
-          created_at: now,
-          updated_at: now,
-        });
+        const ins = await db.run(
+          `INSERT INTO message_templates (title, body, image_url, buttons, buttons_per_row, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+          [title, body, imageUrl, buttonsJson, buttonsPerRow, now, now]
+        );
         const newId = Number(ins.lastInsertRowid || 0);
         redirect(
           res,
@@ -2380,7 +2410,7 @@ function startAdminPanel(db, instances) {
       if (req.method === "POST" && reqUrl.pathname === "/panel/message-delete") {
         const form = await readForm(req);
         const id = Number(form.get("id") || 0);
-        if (id > 0) messageDeleteStmt.run(id);
+        if (id > 0) await db.run("DELETE FROM message_templates WHERE id = $1", [id]);
         redirect(
           res,
           `/panel?view=messages&notice=${encodeURIComponent("Message deleted.")}`
@@ -2401,7 +2431,7 @@ function startAdminPanel(db, instances) {
   });
 }
 
-const { configs, source, db } = resolveConfigs();
+const { configs, source, db } = await resolveConfigs();
 console.log(`Config: ${configs.length} bot(s) from ${source}`);
 const instances = [];
 for (const cfg of configs) {

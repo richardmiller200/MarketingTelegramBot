@@ -6,12 +6,14 @@
   "scripts": {
     "start": "node bot.js",
     "template": "node scripts/make-template.mjs",
-    "reset-admin-lock": "node scripts/reset-admin-login-lock.mjs"
+    "reset-admin-lock": "node scripts/reset-admin-login-lock.mjs",
+    "migrate:sqlite-to-postgres": "node scripts/migrate-sqlite-to-postgres.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",
     "dotenv": "^16.4.5",
     "node-telegram-bot-api": "^0.66.0",
+    "pg": "^8.20.0",
     "xlsx": "^0.18.5"
   }
 }
