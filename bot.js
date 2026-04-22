@@ -361,6 +361,16 @@ async function loadMessageTemplates(db) {
   }
 }
 
+function parseMessageTemplateReferenceId(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return 0;
+  const normalized = raw.toUpperCase().replace(/\s+/g, "");
+  const match = normalized.match(/^MSG-(\d+)$/);
+  if (match) return Number(match[1] || 0);
+  const numeric = Number(raw);
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : 0;
+}
+
 function sanitizeMessageTemplateFields(raw) {
   const title = String(raw.title ?? "")
     .replace(/\0/g, "")
@@ -1450,12 +1460,13 @@ async function renderPanelPage({
   editingId = 0,
   templateEditId = 0,
   templateNew = false,
+  broadcastRef = "",
   notice = "",
   view = "dashboard",
   db,
 }) {
   const templates =
-    view === "messages" ? await loadMessageTemplates(db) : [];
+    view === "messages" || view === "broadcast" ? await loadMessageTemplates(db) : [];
   const rowsBySlug = new Map(statusRows.map((r) => [r.slug, r]));
   const totalBots = botRows.length;
   const enabledBots = botRows.filter((b) => Number(b.enabled) !== 0).length;
@@ -1729,6 +1740,9 @@ async function renderPanelPage({
             <a class="msg-card-action msg-card-edit" href="/panel?view=messages&edit=${tid}">
               <span class="material-symbols-outlined">edit</span>Edit
             </a>
+            <a class="msg-card-action" href="/panel?view=broadcast&ref=${encodeURIComponent(publicId)}">
+              <span class="material-symbols-outlined">campaign</span>Broadcast
+            </a>
             <form method="POST" action="/panel/message-delete" onsubmit="return confirm('Delete ${escapeHtml(publicId)}?');">
               <input type="hidden" name="id" value="${tid}"/>
               <button type="submit" class="msg-card-action msg-card-delete">
@@ -1757,12 +1771,40 @@ async function renderPanelPage({
 </div>`;
     }
     if (view === "broadcast") {
+      const normalizedRef = String(broadcastRef ?? "").trim();
+      const selectedTemplateId = parseMessageTemplateReferenceId(normalizedRef);
+      const selectedTemplate =
+        selectedTemplateId > 0
+          ? templates.find((t) => Number(t.id) === selectedTemplateId) || null
+          : null;
+      const prefilledButtons = selectedTemplate
+        ? parseMessageTemplateButtons(selectedTemplate.buttons).slice(0, 5)
+        : [];
+      const prefilledButtonsPerRow = selectedTemplate
+        ? parseButtonsPerRow(selectedTemplate.buttons_per_row ?? 2)
+        : 2;
+      const buttonAt = (i, key) =>
+        escapeHtml(String(prefilledButtons[i - 1]?.[key] ?? ""));
+      const buttonRowAt = (i) =>
+        parseButtonsPerRow(prefilledButtons[i - 1]?.row ?? prefilledButtonsPerRow, prefilledButtonsPerRow);
+      const hasButtonAt = (i) =>
+        Boolean(prefilledButtons[i - 1]?.text || prefilledButtons[i - 1]?.url);
+      const prefillMessage = escapeHtml(String(selectedTemplate?.body ?? ""));
+      const prefillImage = escapeHtml(String(selectedTemplate?.image_url ?? ""));
+      const selectedRefLabel = selectedTemplate ? `MSG-${Number(selectedTemplate.id)}` : "";
+      const refNotFound = normalizedRef && selectedTemplateId > 0 && !selectedTemplate;
       const broadcastButtonRowsHtml = [1, 2, 3, 4, 5]
         .map(
           (i) =>
             `<div class="row button-row broadcast-button-row" data-broadcast-button-row="${i}" ${
-              i === 1 ? "" : "style='display:none'"
-            }><label>Button ${i} Text<input name="broadcast_button_${i}_text" placeholder="Optional"/></label><label>Button ${i} URL<input name="broadcast_button_${i}_url" placeholder="https://..."/></label><label>Row Size<select name="broadcast_button_${i}_row"><option value="1">1/1</option><option value="2" selected>1/2</option><option value="3">1/3</option></select></label>${
+              i === 1 || hasButtonAt(i) ? "" : "style='display:none'"
+            }><label>Button ${i} Text<input name="broadcast_button_${i}_text" placeholder="Optional" value="${buttonAt(i, "text")}"/></label><label>Button ${i} URL<input name="broadcast_button_${i}_url" placeholder="https://..." value="${buttonAt(i, "url")}"/></label><label>Row Size<select name="broadcast_button_${i}_row"><option value="1" ${
+              buttonRowAt(i) === 1 ? "selected" : ""
+            }>1/1</option><option value="2" ${
+              buttonRowAt(i) === 2 ? "selected" : ""
+            }>1/2</option><option value="3" ${
+              buttonRowAt(i) === 3 ? "selected" : ""
+            }>1/3</option></select></label>${
               i === 1
                 ? "<div></div>"
                 : `<button type="button" class="muted broadcast-remove-btn" data-remove-broadcast-button="${i}">Remove</button>`
@@ -1770,6 +1812,18 @@ async function renderPanelPage({
         )
         .join("");
       return `<div class="panel"><h2>Broadcast</h2>
+<form class="main" method="GET" action="/panel">
+<input type="hidden" name="view" value="broadcast"/>
+<div class="row">
+  <label>Reference ID from Message Library
+    <input name="ref" placeholder="MSG-1 or 1" value="${escapeHtml(normalizedRef)}"/>
+  </label>
+  <div class="submit" style="align-items:flex-end;"><button class="muted" type="submit">Load Template</button></div>
+</div>
+<div class="hint">Use a Message Library reference ID to auto-fill broadcast message, image, and buttons.</div>
+</form>
+${selectedTemplate ? `<div class="note">Loaded template <strong>${escapeHtml(selectedRefLabel)}</strong> for broadcast.</div>` : ""}
+${refNotFound ? `<div class="note">No message template found for reference ID <strong>${escapeHtml(normalizedRef)}</strong>.</div>` : ""}
 <form class="main" method="POST" action="/panel/broadcast">
 <div class="row"><label>Select Bot(s)
   <select name="bot_ids" multiple required>
@@ -1777,12 +1831,12 @@ async function renderPanelPage({
   </select>
 </label><label>Test Chat ID (optional)<input name="test_chat_id" placeholder="123456789"/></label></div>
 <div class="hint">Hold Cmd/Ctrl to select multiple bots.</div>
-<label>Message<textarea name="broadcast_message" required placeholder="Type broadcast message..."></textarea></label>
-<div class="row"><label>Broadcast Image URL (optional)<input name="broadcast_image" placeholder="https://..."/></label><label>Buttons Per Row (fallback)
+<label>Message<textarea name="broadcast_message" required placeholder="Type broadcast message...">${prefillMessage}</textarea></label>
+<div class="row"><label>Broadcast Image URL (optional)<input name="broadcast_image" placeholder="https://..." value="${prefillImage}"/></label><label>Buttons Per Row (fallback)
   <select name="broadcast_buttons_per_row">
-    <option value="1">1</option>
-    <option value="2" selected>2</option>
-    <option value="3">3</option>
+    <option value="1" ${prefilledButtonsPerRow === 1 ? "selected" : ""}>1</option>
+    <option value="2" ${prefilledButtonsPerRow === 2 ? "selected" : ""}>2</option>
+    <option value="3" ${prefilledButtonsPerRow === 3 ? "selected" : ""}>3</option>
   </select>
 </label></div>
 ${broadcastButtonRowsHtml}
@@ -2212,6 +2266,7 @@ function startAdminPanel(db, instances) {
         const edit = Number(reqUrl.searchParams.get("edit") || 0);
         const notice = reqUrl.searchParams.get("notice") || "";
         const view = String(reqUrl.searchParams.get("view") || "dashboard");
+        const broadcastRef = view === "broadcast" ? String(reqUrl.searchParams.get("ref") || "") : "";
         const editingBotId = view === "add" ? edit : 0;
         const templateNew = view === "messages" && String(reqUrl.searchParams.get("new") || "") === "1";
         const templateEditId = view === "messages" && !templateNew ? edit : 0;
@@ -2222,6 +2277,7 @@ function startAdminPanel(db, instances) {
           editingId: editingBotId,
           templateEditId,
           templateNew,
+          broadcastRef,
           notice,
           view,
           db,
