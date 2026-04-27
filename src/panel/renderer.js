@@ -643,19 +643,24 @@ ${refNotFound ? `<div class="note">No message template found for <strong>${escap
   });
 </script>
 
-<h3 style="margin:28px 0 12px;">Scheduled Broadcasts</h3>
-<table>
-  <thead>
-    <tr><th>Message</th><th>Schedule</th><th>Last Sent</th><th>Next Run</th><th>Status</th><th>Actions</th></tr>
-  </thead>
-  <tbody>${scheduleRows}</tbody>
-</table>
+</div>
 
-<h3 style="margin:28px 0 12px;">Broadcast History</h3>
-<table>
-  <thead><tr><th>Time</th><th>Bot</th><th>Mode</th><th>Recipients</th><th>Sent</th><th>Failed</th><th>Note</th></tr></thead>
-  <tbody>${broadcastHistoryRows || "<tr><td colspan='7'>No broadcast history yet.</td></tr>"}</tbody>
-</table>
+<div class="panel">
+  <h2>Scheduled Broadcasts</h2>
+  <table>
+    <thead>
+      <tr><th>Message</th><th>Schedule</th><th>Last Sent</th><th>Next Run</th><th>Status</th><th>Actions</th></tr>
+    </thead>
+    <tbody>${scheduleRows}</tbody>
+  </table>
+</div>
+
+<div class="panel">
+  <h2>Broadcast History</h2>
+  <table>
+    <thead><tr><th>Time</th><th>Bot</th><th>Mode</th><th>Recipients</th><th>Sent</th><th>Failed</th><th>Note</th></tr></thead>
+    <tbody>${broadcastHistoryRows || "<tr><td colspan='7'>No broadcast history yet.</td></tr>"}</tbody>
+  </table>
 </div>`;
 }
 
