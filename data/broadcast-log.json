@@ -38,5 +38,215 @@
     "failed": 0,
     "ok": true,
     "note": "Completed"
+  },
+  {
+    "at": "2026-04-18T06:01:22.658Z",
+    "botName": "Adheri Club",
+    "mode": "test",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "Missing test chat id"
+  },
+  {
+    "at": "2026-04-18T06:01:22.660Z",
+    "botName": "bet365",
+    "mode": "test",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "Missing test chat id"
+  },
+  {
+    "at": "2026-04-18T06:56:02.574Z",
+    "botName": "Adheri Club",
+    "mode": "full",
+    "recipients": 1,
+    "sent": 1,
+    "failed": 0,
+    "ok": true,
+    "note": "Completed"
+  },
+  {
+    "at": "2026-04-18T06:56:03.713Z",
+    "botName": "BDG555",
+    "mode": "full",
+    "recipients": 2,
+    "sent": 2,
+    "failed": 0,
+    "ok": true,
+    "note": "Completed"
+  },
+  {
+    "at": "2026-04-18T06:56:04.233Z",
+    "botName": "bet365",
+    "mode": "full",
+    "recipients": 1,
+    "sent": 1,
+    "failed": 0,
+    "ok": true,
+    "note": "Completed"
+  },
+  {
+    "at": "2026-04-18T06:56:04.763Z",
+    "botName": "parimatch",
+    "mode": "full",
+    "recipients": 1,
+    "sent": 1,
+    "failed": 0,
+    "ok": true,
+    "note": "Completed"
+  },
+  {
+    "at": "2026-04-18T06:56:04.764Z",
+    "botName": "1xbet",
+    "mode": "full",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "No interacted users found"
+  },
+  {
+    "at": "2026-04-18T06:56:04.765Z",
+    "botName": "Crowncoin",
+    "mode": "full",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "No interacted users found"
+  },
+  {
+    "at": "2026-04-18T06:56:05.283Z",
+    "botName": "lotus365",
+    "mode": "full",
+    "recipients": 1,
+    "sent": 1,
+    "failed": 0,
+    "ok": true,
+    "note": "Completed"
+  },
+  {
+    "at": "2026-04-18T06:56:05.284Z",
+    "botName": "dafabet",
+    "mode": "full",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "No interacted users found"
+  },
+  {
+    "at": "2026-04-18T06:56:05.285Z",
+    "botName": "1win",
+    "mode": "full",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "No interacted users found"
+  },
+  {
+    "at": "2026-04-18T06:56:05.288Z",
+    "botName": "betonline",
+    "mode": "full",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "No interacted users found"
+  },
+  {
+    "at": "2026-04-18T06:56:05.288Z",
+    "botName": "BC.game",
+    "mode": "full",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "No interacted users found"
+  },
+  {
+    "at": "2026-04-18T06:56:05.289Z",
+    "botName": "netbet",
+    "mode": "full",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "No interacted users found"
+  },
+  {
+    "at": "2026-04-18T06:56:05.290Z",
+    "botName": "4RAbet",
+    "mode": "full",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "No interacted users found"
+  },
+  {
+    "at": "2026-04-18T06:56:05.290Z",
+    "botName": "22bet",
+    "mode": "full",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "No interacted users found"
+  },
+  {
+    "at": "2026-04-18T06:56:05.290Z",
+    "botName": "betway",
+    "mode": "full",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "No interacted users found"
+  },
+  {
+    "at": "2026-04-18T06:56:05.291Z",
+    "botName": "Tata IPL",
+    "mode": "full",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "No interacted users found"
+  },
+  {
+    "at": "2026-04-18T06:56:05.292Z",
+    "botName": "RajaBet",
+    "mode": "full",
+    "recipients": 0,
+    "sent": 0,
+    "failed": 0,
+    "ok": false,
+    "note": "No interacted users found"
+  },
+  {
+    "at": "2026-04-18T06:56:05.806Z",
+    "botName": "MPL Live",
+    "mode": "full",
+    "recipients": 1,
+    "sent": 1,
+    "failed": 0,
+    "ok": true,
+    "note": "Completed"
+  },
+  {
+    "at": "2026-04-18T06:58:47.396Z",
+    "botName": "Adheri Club",
+    "mode": "full",
+    "recipients": 2,
+    "sent": 2,
+    "failed": 0,
+    "ok": true,
+    "note": "Completed"
   }
 ]
